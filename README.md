@@ -2,7 +2,6 @@
 
 This project provides a portable, offline environmental monitoring solution using an ESP8266 microcontroller with a built-in OLED display and a BME680 gas and environmental sensor. It features a simple web interface (in Access Point mode) for real-time data viewing, prioritizing efficiency and battery life.
 
-<img src="https://github.com/user-attachments/assets/69717946-531c-45ce-bea0-1fd523f935c1" alt="ESP8266 BME680 OLED Display" width="400">
 <img src="https://github.com/user-attachments/assets/a5e39dbc-0e6a-4b88-b850-ccc1f0e625ef" alt="ESP8266 Device Front View" width="400">
 <img src="https://github.com/user-attachments/assets/25655a07-ef23-4456-b626-bd6670e3cddc" alt="ESP8266 Device Side View" width="400">
 
@@ -25,7 +24,7 @@ This project provides a portable, offline environmental monitoring solution usin
 
 * **ESP8266 Development Board:** Specifically designed for ESP8266 boards with built-in OLED displays (e.g., NodeMCU ESP8266 with integrated 0.96" SSD1306 OLED).
 * **Bosch BME680 Environmental Sensor:** Connected via I2C.
-* **TP4506:** (Presumably for LiPo battery charging/management)
+* **TP4506:** For LiPo battery charging/management
 * **LiPo Battery 1500 mAh:** For portable operation.
 * **Power Switch:** For device control.
 * **Custom PCB & Enclosure:** For integration and portability.
