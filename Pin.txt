@@ -1,0 +1,7 @@
+I2C address 0x3C (OLED Display)
+
+BME280 (0x76):
+SDA = D5 / GPIO14
+SCL = D6 / GPIO12
+SDO = GND
+CS = Not Connected
