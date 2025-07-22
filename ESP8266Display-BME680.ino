@@ -5,16 +5,20 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 
+// --- Configuration ---
 #define OLED_ADDRESS 0x3C
 #define I2C_SDA_GPIO 14
 #define I2C_SCL_GPIO 12
 #define BME_ADDRESS 0x76
 
-const char* AP_SSID = "ESP8266_BME680";
-const char* AP_PASSWORD = "password123";
+// SSID dan Password untuk Access Point (AP) ESP8266
+const char *AP_SSID = "ESP8266_BME680";
+const char *AP_PASSWORD = "password123";
 
+// Objek Web Server pada port 80 (HTTP default)
 ESP8266WebServer server(80);
 
+// --- Timing Constants ---
 const unsigned long SENSOR_READ_INTERVAL_MS = 30000;
 const unsigned long OLED_DATA_SCREEN_1_DURATION_MS = 7000;
 const unsigned long OLED_DATA_SCREEN_2_DURATION_MS = 3000;
@@ -25,9 +29,14 @@ const unsigned long BME680_RELIABLE_READ_RETRY_DELAY_MS = 50;
 const unsigned long BME680_INIT_RETRY_INTERVAL_MS = 3000;
 const int BME680_MAX_INIT_ATTEMPTS = 50;
 
+// --- Global Objects ---
 SSD1306Wire display(OLED_ADDRESS, I2C_SDA_GPIO, I2C_SCL_GPIO);
 Adafruit_BME680 bme(&Wire);
 
+// Global buffer for string formatting on OLED
+char oledBuffer[64];
+
+// --- Sensor Data Variables ---
 float gTemp = 0.0;
 float gHum = 0.0;
 float gPress = 0.0;
@@ -35,34 +44,42 @@ float gAlt = 0.0;
 float gGasResistance = 0.0;
 const float seaLevelPressure_hPa_current = 1013.25;
 
-enum AppMode { MODE_OFFLINE, MODE_BME_ERROR };
+// --- State Variables ---
+enum AppMode { MODE_OFFLINE,
+               MODE_BME_ERROR };
 AppMode currentAppMode = MODE_OFFLINE;
 
-enum OledDisplayState { OLED_STATE_ERROR_SCREEN, OLED_STATE_DATA_SCREEN_1, OLED_STATE_DATA_SCREEN_2, OLED_STATE_OFF };
+enum OledDisplayState { OLED_STATE_ERROR_SCREEN,
+                        OLED_STATE_DATA_SCREEN_1,
+                        OLED_STATE_DATA_SCREEN_2,
+                        OLED_STATE_OFF };
 OledDisplayState currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
 
 unsigned long lastSensorReadMillis = 0;
 unsigned long oledScreenStateChangeMillis = 0;
 
+// --- Function Prototypes ---
 void initOLED();
 void initBME680();
 void readBME680SensorData();
 bool readBME680SensorReliably(float &temp, float &hum, float &press_Pa, float &alt, float &gas);
 void updateOLEDDisplayContent();
-void displayCenteredStatus(const String& line1, const String& line2);
+void displayCenteredStatus(const String &line1, const String &line2);  // Still uses String for parameters, will convert internally
 void displaySensorDataScreen1();
 void displaySensorDataScreen2();
 String getGasStatus(float gasResistance);
 
+// Web Server Handlers
 void handleRoot();
 void handleNotFound();
 
-const char* HTML_CONTENT = R"rawliteral(
+// HTML content for web server (minimalist, data display only, with simple text labels)
+const char *HTML_CONTENT = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="30">
+<meta http-equiv="refresh" content="30"> 
 <title>BME680 Monitor</title>
 <style>
 body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin: 0; padding: 20px; color: #333; }
@@ -70,7 +87,7 @@ body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin: 0; pad
 h1 { color: #0056b3; text-align: center; margin-bottom: 20px;}
 .sensor-data { margin-top: 20px; }
 .sensor-data p { margin: 8px 0; font-size: 1.1em; }
-.sensor-data strong { display: inline-block; width: 120px; }
+.sensor-data strong { display: inline-block; width: 120px; } 
 .footer { text-align: center; margin-top: 30px; font-size: 0.8em; color: #777; }
 </style>
 </head>
@@ -199,11 +216,7 @@ bool readBME680SensorReliably(float &temp, float &hum, float &press_Pa, float &a
       press_Pa = bme.pressure;
       alt = bme.readAltitude(seaLevelPressure_hPa_current);
       gas = bme.gas_resistance / 1000.0;
-      if (!isnan(temp) && !isnan(hum) && !isnan(press_Pa) && !isnan(alt) && !isnan(gas) &&
-          temp >= -40.0 && temp <= 85.0 &&
-          hum >= 0.0 && hum <= 100.0 &&
-          press_Pa >= 30000 && press_Pa <= 110000 &&
-          gas >= 0.0) {
+      if (!isnan(temp) && !isnan(hum) && !isnan(press_Pa) && !isnan(alt) && !isnan(gas) && temp >= -40.0 && temp <= 85.0 && hum >= 0.0 && hum <= 100.0 && press_Pa >= 30000 && press_Pa <= 110000 && gas >= 0.0) {
         return true;
       }
     }
@@ -260,17 +273,23 @@ void updateOLEDDisplayContent() {
 void displaySensorDataScreen1() {
   display.setFont(ArialMT_Plain_16);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.drawString(0, 0, "Temp: " + String(gTemp, 2) + " C");
-  display.drawString(0, 16, "Hum: " + String(gHum, 2) + " %");
-  display.drawString(0, 32, "Press: " + String(gPress, 1) + " hPa");
-  display.drawString(0, 48, "Alti: " + String(gAlt, 2) + " m");
+  snprintf(oledBuffer, sizeof(oledBuffer), "Temp: %.2f C", gTemp);
+  display.drawString(0, 0, oledBuffer);
+  snprintf(oledBuffer, sizeof(oledBuffer), "Hum: %.2f %%", gHum);
+  display.drawString(0, 16, oledBuffer);
+  snprintf(oledBuffer, sizeof(oledBuffer), "Press: %.1f hPa", gPress);
+  display.drawString(0, 32, oledBuffer);
+  snprintf(oledBuffer, sizeof(oledBuffer), "Alti: %.2f m", gAlt);
+  display.drawString(0, 48, oledBuffer);
 }
 
 void displaySensorDataScreen2() {
   display.setFont(ArialMT_Plain_16);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.drawString(0, 0, "Gas: " + String(gGasResistance, 2) + " kOhm");
-  display.drawString(0, 16, "Status: " + getGasStatus(gGasResistance));
+  snprintf(oledBuffer, sizeof(oledBuffer), "Gas: %.2f kOhm", gGasResistance);
+  display.drawString(0, 0, oledBuffer);
+  snprintf(oledBuffer, sizeof(oledBuffer), "Status: %s", getGasStatus(gGasResistance).c_str());
+  display.drawString(0, 16, oledBuffer);
 }
 
 String getGasStatus(float gasResistance) {
@@ -279,18 +298,20 @@ String getGasStatus(float gasResistance) {
   else return "Bad";
 }
 
-void displayCenteredStatus(const String& line1, const String& line2) {
+void displayCenteredStatus(const String &line1, const String &line2) {
   display.clear();
   display.setFont(ArialMT_Plain_16);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
-  display.drawString(64, 15, line1);
-  display.drawString(64, 40, line2);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%s", line1.c_str());
+  display.drawString(64, 15, oledBuffer);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%s", line2.c_str());
+  display.drawString(64, 40, oledBuffer);
   display.display();
 }
 
 void handleRoot() {
   char temp_html[2000];
-  
+
   snprintf(temp_html, sizeof(temp_html), HTML_CONTENT,
            gTemp, gHum, gPress, gAlt, gGasResistance, getGasStatus(gGasResistance).c_str());
   server.send(200, "text/html", temp_html);
