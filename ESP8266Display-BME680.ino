@@ -2,23 +2,12 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME680.h>
 #include <SSD1306Wire.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
 
-// --- Configuration ---
 #define OLED_ADDRESS 0x3C
 #define I2C_SDA_GPIO 14
 #define I2C_SCL_GPIO 12
 #define BME_ADDRESS 0x76
 
-// SSID dan Password untuk Access Point (AP) ESP8266
-const char *AP_SSID = "ESP8266_BME680";
-const char *AP_PASSWORD = "password123";
-
-// Objek Web Server pada port 80 (HTTP default)
-ESP8266WebServer server(80);
-
-// --- Timing Constants ---
 const unsigned long SENSOR_READ_INTERVAL_MS = 30000;
 const unsigned long OLED_DATA_SCREEN_1_DURATION_MS = 7000;
 const unsigned long OLED_DATA_SCREEN_2_DURATION_MS = 3000;
@@ -29,14 +18,11 @@ const unsigned long BME680_RELIABLE_READ_RETRY_DELAY_MS = 50;
 const unsigned long BME680_INIT_RETRY_INTERVAL_MS = 3000;
 const int BME680_MAX_INIT_ATTEMPTS = 50;
 
-// --- Global Objects ---
 SSD1306Wire display(OLED_ADDRESS, I2C_SDA_GPIO, I2C_SCL_GPIO);
 Adafruit_BME680 bme(&Wire);
 
-// Global buffer for string formatting on OLED
-char oledBuffer[64];
+char oledBuffer[64]; 
 
-// --- Sensor Data Variables ---
 float gTemp = 0.0;
 float gHum = 0.0;
 float gPress = 0.0;
@@ -44,71 +30,24 @@ float gAlt = 0.0;
 float gGasResistance = 0.0;
 const float seaLevelPressure_hPa_current = 1013.25;
 
-// --- State Variables ---
-enum AppMode { MODE_OFFLINE,
-               MODE_BME_ERROR };
+enum AppMode { MODE_OFFLINE, MODE_BME_ERROR };
 AppMode currentAppMode = MODE_OFFLINE;
 
-enum OledDisplayState { OLED_STATE_ERROR_SCREEN,
-                        OLED_STATE_DATA_SCREEN_1,
-                        OLED_STATE_DATA_SCREEN_2,
-                        OLED_STATE_OFF };
+enum OledDisplayState { OLED_STATE_ERROR_SCREEN, OLED_STATE_DATA_SCREEN_1, OLED_STATE_DATA_SCREEN_2, OLED_STATE_OFF };
 OledDisplayState currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
 
 unsigned long lastSensorReadMillis = 0;
 unsigned long oledScreenStateChangeMillis = 0;
 
-// --- Function Prototypes ---
 void initOLED();
 void initBME680();
 void readBME680SensorData();
 bool readBME680SensorReliably(float &temp, float &hum, float &press_Pa, float &alt, float &gas);
 void updateOLEDDisplayContent();
-void displayCenteredStatus(const String &line1, const String &line2);  // Still uses String for parameters, will convert internally
+void displayCenteredStatus(const String& line1, const String& line2);
 void displaySensorDataScreen1();
 void displaySensorDataScreen2();
 String getGasStatus(float gasResistance);
-
-// Web Server Handlers
-void handleRoot();
-void handleNotFound();
-
-// HTML content for web server (minimalist, data display only, with simple text labels)
-const char *HTML_CONTENT = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="30"> 
-<title>BME680 Monitor</title>
-<style>
-body { font-family: Arial, sans-serif; background-color: #f0f0f0; margin: 0; padding: 20px; color: #333; }
-.container { background-color: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-h1 { color: #0056b3; text-align: center; margin-bottom: 20px;}
-.sensor-data { margin-top: 20px; }
-.sensor-data p { margin: 8px 0; font-size: 1.1em; }
-.sensor-data strong { display: inline-block; width: 120px; } 
-.footer { text-align: center; margin-top: 30px; font-size: 0.8em; color: #777; }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>BME680 Lingkungan Monitor</h1>
-  <div class="sensor-data">
-    <p><strong>Suhu:</strong> %.2f &deg;C</p>
-    <p><strong>Kelembaban:</strong> %.2f %%</p>
-    <p><strong>Tekanan:</strong> %.1f hPa</p>
-    <p><strong>Ketinggian:</strong> %.2f m</p>
-    <p><strong>Gas:</strong> %.2f kOhm (%s)</p>
-  </div>
-  <div class="footer">
-    <p>ESP8266 BME680 Monitor</p>
-  </div>
-</div>
-</body>
-</html>
-)rawliteral";
-
 
 void setup() {
   Serial.begin(115200);
@@ -117,22 +56,8 @@ void setup() {
   Wire.setClock(400000);
 
   initOLED();
-  displayCenteredStatus("BME680 Monitor", "Starting Web...");
+  displayCenteredStatus("BME680 Monitor", "Initializing...");
   delay(1000);
-
-  Serial.print("Setting up AP (Access Point) Mode: ");
-  Serial.println(AP_SSID);
-  WiFi.softAP(AP_SSID, AP_PASSWORD);
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(myIP);
-  displayCenteredStatus("Connect to:", myIP.toString());
-  delay(3000);
-
-  server.on("/", HTTP_GET, handleRoot);
-  server.onNotFound(handleNotFound);
-  server.begin();
-  Serial.println("HTTP server started");
 
   initBME680();
   if (!bme.begin(BME_ADDRESS)) {
@@ -142,12 +67,10 @@ void setup() {
 
   lastSensorReadMillis = millis();
   oledScreenStateChangeMillis = millis();
-  readBME680SensorData();
+  readBME680SensorData(); 
 }
 
 void loop() {
-  server.handleClient();
-
   if (currentAppMode == MODE_OFFLINE) {
     if (millis() - lastSensorReadMillis >= SENSOR_READ_INTERVAL_MS) {
       readBME680SensorData();
@@ -204,8 +127,8 @@ void readBME680SensorData() {
   gAlt = altitude;
   gGasResistance = gas_resistance;
   oledScreenStateChangeMillis = millis();
-  currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
-  display.displayOn();
+  currentOledScreenState = OLED_STATE_DATA_SCREEN_1; 
+  display.displayOn(); 
 }
 
 bool readBME680SensorReliably(float &temp, float &hum, float &press_Pa, float &alt, float &gas) {
@@ -216,7 +139,11 @@ bool readBME680SensorReliably(float &temp, float &hum, float &press_Pa, float &a
       press_Pa = bme.pressure;
       alt = bme.readAltitude(seaLevelPressure_hPa_current);
       gas = bme.gas_resistance / 1000.0;
-      if (!isnan(temp) && !isnan(hum) && !isnan(press_Pa) && !isnan(alt) && !isnan(gas) && temp >= -40.0 && temp <= 85.0 && hum >= 0.0 && hum <= 100.0 && press_Pa >= 30000 && press_Pa <= 110000 && gas >= 0.0) {
+      if (!isnan(temp) && !isnan(hum) && !isnan(press_Pa) && !isnan(alt) && !isnan(gas) &&
+          temp >= -40.0 && temp <= 85.0 &&
+          hum >= 0.0 && hum <= 100.0 &&
+          press_Pa >= 30000 && press_Pa <= 110000 &&
+          gas >= 0.0) {
         return true;
       }
     }
@@ -298,7 +225,7 @@ String getGasStatus(float gasResistance) {
   else return "Bad";
 }
 
-void displayCenteredStatus(const String &line1, const String &line2) {
+void displayCenteredStatus(const String& line1, const String& line2) {
   display.clear();
   display.setFont(ArialMT_Plain_16);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
@@ -307,16 +234,4 @@ void displayCenteredStatus(const String &line1, const String &line2) {
   snprintf(oledBuffer, sizeof(oledBuffer), "%s", line2.c_str());
   display.drawString(64, 40, oledBuffer);
   display.display();
-}
-
-void handleRoot() {
-  char temp_html[2000];
-
-  snprintf(temp_html, sizeof(temp_html), HTML_CONTENT,
-           gTemp, gHum, gPress, gAlt, gGasResistance, getGasStatus(gGasResistance).c_str());
-  server.send(200, "text/html", temp_html);
-}
-
-void handleNotFound() {
-  server.send(404, "text/plain", "Not Found");
 }
