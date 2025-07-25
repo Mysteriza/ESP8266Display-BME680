@@ -1,8 +1,7 @@
-# ESP8266 BME680 Environmental Monitor with OLED Display & Web Interface (AP Mode)
+# ESP8266 BME680 Environmental Monitor with OLED Display
 
-This project provides a portable, offline environmental monitoring solution using an ESP8266 microcontroller with a built-in OLED display and a BME680 gas and environmental sensor. It features a simple web interface (in Access Point mode) for real-time data viewing, prioritizing efficiency and battery life.
+This project provides a portable, offline environmental monitoring solution using an ESP8266 microcontroller with a built-in OLED display and a BME680 gas and environmental sensor.
 
-<img src="https://github.com/user-attachments/assets/69717946-531c-45ce-bea0-1fd523f935c1" alt="ESP8266 BME680 OLED Display" width="400">
 <img src="https://github.com/user-attachments/assets/a5e39dbc-0e6a-4b88-b850-ccc1f0e625ef" alt="ESP8266 Device Front View" width="400">
 <img src="https://github.com/user-attachments/assets/25655a07-ef23-4456-b626-bd6670e3cddc" alt="ESP8266 Device Side View" width="400">
 
@@ -14,10 +13,6 @@ This project provides a portable, offline environmental monitoring solution usin
     * **Screen 1:** Displays Temperature, Humidity, Pressure, and Altitude.
     * **Screen 2:** Displays Gas Resistance (kOhm) and an interpreted Gas Status (e.g., "Very Good", "Good", "Bad").
     * **Power Saving:** The OLED display cycles between Screen 1 (7 seconds) and Screen 2 (3 seconds), then turns off for the remainder of the 30-second sensor reading interval (approximately 20 seconds) to conserve battery.
-* **Web Interface (Access Point Mode):**
-    * The ESP8266 acts as a Wi-Fi Access Point (AP Mode), allowing smartphones, laptops, or other devices to connect directly to it.
-    * A minimalist web page displays real-time sensor data, refreshing automatically every 30 seconds.
-    * **Note:** This version of the web interface is for data display only and does not include settings customization to optimize for ESP8266's limited memory.
 * **Efficient Sensor Readings:** The BME680 sensor is put into a low-power state between readings and only actively performs measurements every 30 seconds to save power.
 * **Robustness:** Includes retry mechanisms for BME680 initialization and data reading to handle temporary communication issues.
 
@@ -25,7 +20,7 @@ This project provides a portable, offline environmental monitoring solution usin
 
 * **ESP8266 Development Board:** Specifically designed for ESP8266 boards with built-in OLED displays (e.g., NodeMCU ESP8266 with integrated 0.96" SSD1306 OLED).
 * **Bosch BME680 Environmental Sensor:** Connected via I2C.
-* **TP4506:** (Presumably for LiPo battery charging/management)
+* **TP4506:** For LiPo battery charging/management
 * **LiPo Battery 1500 mAh:** For portable operation.
 * **Power Switch:** For device control.
 * **Custom PCB & Enclosure:** For integration and portability.
@@ -51,7 +46,6 @@ The project uses the following default I2C pins for the OLED display and BME680 
     * `Adafruit_BME680` (by Adafruit)
     * `SSD1306Wire` (by Daniel Eichhorn)
     * `ESP8266WiFi.h` (Built-in ESP8266 core)
-    * `ESP8266WebServer.h` (Built-in ESP8266 core)
 
 ## Installation and Usage
 
@@ -69,7 +63,6 @@ The project uses the following default I2C pins for the OLED display and BME680 
 7.  **Select Flash Size:** Crucially, select an appropriate Flash Size (e.g., `4M (1M SPIFFS)` or `4M (FS:3MB, OTA:~512KB)`) to ensure enough space for the firmware. Memory errors can occur with smaller flash allocations.
 8.  **Upload:** Connect your ESP8266 board and click the "Upload" button.
 9.  **Connect to AP:** After uploading, open your smartphone or laptop's Wi-Fi settings. Connect to the Wi-Fi network named `ESP8266_BME680` (or your custom SSID) using the password `password123` (or your custom password).
-10. **Access Web Interface:** Once connected, open a web browser and navigate to `http://192.168.4.1`. The sensor data will be displayed and automatically refresh every 30 seconds.
 
 ## Gas Resistance Interpretation
 
@@ -78,7 +71,7 @@ The BME680 sensor provides raw gas resistance in kilo-Ohms (kOhm).
 * **Higher kOhm values generally indicate better air quality.**
 * **Lower kOhm values typically suggest higher concentrations of Volatile Organic Compounds (VOCs) or other pollutants.**
 
-The `Gas Status` (Very Good, Good, Bad) displayed on the OLED and web interface is based on predefined thresholds in the code. To effectively interpret these values for your specific environment, it is highly recommended to:
+The `Gas Status` (Very Good, Good, Bad) displayed on the OLED is based on predefined thresholds in the code. To effectively interpret these values for your specific environment, it is highly recommended to:
 
 1.  **Establish a Baseline:** Run the device continuously for at least 24-48 hours in your typical environment (e.g., your room with normal ventilation). Observe the range of kOhm values that correspond to what you consider "good" or "normal" air.
 2.  **Adjust Thresholds (Optional):** If needed, you can modify the `getGasStatus` function in the code to set custom thresholds that are more relevant to your established baseline.
