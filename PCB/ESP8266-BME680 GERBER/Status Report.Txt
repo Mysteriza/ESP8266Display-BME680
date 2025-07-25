@@ -1,0 +1,12 @@
+Output: NC Drill Files
+Type  : NC Drill
+From  : Project [Rifqi.PrjPcb]
+   Generated File[Rifqi.TXT]
+   Generated File[Rifqi.LDP]
+   Generated File[Rifqi.DRR]
+
+
+Files Generated   : 3
+Documents Printed : 0
+
+Finished Output Generation At 22:38:01 On 24/07/25

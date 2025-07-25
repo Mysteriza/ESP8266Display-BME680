@@ -2,6 +2,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME680.h>
 #include <SSD1306Wire.h>
+#include <EEPROM.h>
 
 #define OLED_ADDRESS 0x3C
 #define I2C_SDA_GPIO 14
@@ -28,7 +29,11 @@ float gHum = 0.0;
 float gPress = 0.0;
 float gAlt = 0.0;
 float gGasResistance = 0.0;
-const float seaLevelPressure_hPa_current = 1013.25;
+
+#define EEPROM_SIZE 512
+#define SEA_LEVEL_PRESSURE_ADDR 0
+
+float seaLevelPressure_hPa_current = 1012.50;
 
 enum AppMode { MODE_OFFLINE, MODE_BME_ERROR };
 AppMode currentAppMode = MODE_OFFLINE;
@@ -48,9 +53,15 @@ void displayCenteredStatus(const String& line1, const String& line2);
 void displaySensorDataScreen1();
 void displaySensorDataScreen2();
 String getGasStatus(float gasResistance);
+void loadSeaLevelPressure();
+void saveSeaLevelPressure(float pressure);
+void handleSerialInput();
 
 void setup() {
   Serial.begin(115200);
+
+  EEPROM.begin(EEPROM_SIZE);
+  loadSeaLevelPressure();
 
   Wire.begin(I2C_SDA_GPIO, I2C_SCL_GPIO);
   Wire.setClock(400000);
@@ -81,6 +92,7 @@ void loop() {
   }
 
   updateOLEDDisplayContent();
+  handleSerialInput();
   yield();
 }
 
@@ -215,14 +227,17 @@ void displaySensorDataScreen2() {
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   snprintf(oledBuffer, sizeof(oledBuffer), "Gas: %.2f kOhm", gGasResistance);
   display.drawString(0, 0, oledBuffer);
-  snprintf(oledBuffer, sizeof(oledBuffer), "Status: %s", getGasStatus(gGasResistance).c_str());
-  display.drawString(0, 16, oledBuffer);
+  display.drawString(0, 16, "Status:"); 
+  snprintf(oledBuffer, sizeof(oledBuffer), "%s", getGasStatus(gGasResistance).c_str());
+  display.drawString(0, 32, oledBuffer);
 }
 
 String getGasStatus(float gasResistance) {
-  if (gasResistance < 60.0) return "Very Good";
-  else if (gasResistance <= 120.0) return "Good";
-  else return "Bad";
+  if (gasResistance <= 25.0) return "Very Poor";
+  else if (gasResistance <= 35.0) return "Poor";
+  else if (gasResistance <= 45.0) return "Normal";
+  else if (gasResistance <= 55.0) return "Good";
+  else return "Excellent";
 }
 
 void displayCenteredStatus(const String& line1, const String& line2) {
@@ -234,4 +249,48 @@ void displayCenteredStatus(const String& line1, const String& line2) {
   snprintf(oledBuffer, sizeof(oledBuffer), "%s", line2.c_str());
   display.drawString(64, 40, oledBuffer);
   display.display();
+}
+
+void loadSeaLevelPressure() {
+  EEPROM.get(SEA_LEVEL_PRESSURE_ADDR, seaLevelPressure_hPa_current);
+  if (isnan(seaLevelPressure_hPa_current) || seaLevelPressure_hPa_current < 900.0 || seaLevelPressure_hPa_current > 1100.0) {
+    seaLevelPressure_hPa_current = 1012.50; 
+    saveSeaLevelPressure(seaLevelPressure_hPa_current);
+  }
+}
+
+void saveSeaLevelPressure(float pressure) {
+  EEPROM.put(SEA_LEVEL_PRESSURE_ADDR, pressure);
+  EEPROM.commit();
+}
+
+void handleSerialInput() {
+  static String command = "";
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      command.trim();
+      if (command.startsWith("setpressure ")) {
+        String pressureStr = command.substring(12);
+        float newPressure = pressureStr.toFloat();
+        if (newPressure >= 300.0 && newPressure <= 1100.0) {
+          seaLevelPressure_hPa_current = newPressure;
+          saveSeaLevelPressure(seaLevelPressure_hPa_current);
+
+          Serial.print("Pressure Updated! ");
+          Serial.println(String(seaLevelPressure_hPa_current, 2) + " hPa");
+
+          snprintf(oledBuffer, sizeof(oledBuffer), "%.2f", seaLevelPressure_hPa_current);
+          displayCenteredStatus("Pressure Updated!", oledBuffer);
+          
+          delay(2000); 
+          oledScreenStateChangeMillis = millis();
+          currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
+        }
+      } 
+      command = "";
+    } else {
+      command += c;
+    }
+  }
 }

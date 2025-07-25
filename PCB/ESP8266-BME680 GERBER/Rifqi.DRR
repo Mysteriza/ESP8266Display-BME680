@@ -1,0 +1,20 @@
+----------------------------------------------------------------------------------------------------------------------------------
+NCDrill File Report For: Rifqi.PcbDoc   24/07/25  22:38:01
+----------------------------------------------------------------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : Rifqi.TXT
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T1      0.8mm (31mil)                                             Round             3         PTH        4.00mm (0.16inch)
+T2      0.889mm (35mil)                                           Round             30        PTH        147.32mm (5.80inch)
+T3      1.05mm (41mil)                                            Round             2         PTH        2.50mm (0.10inch)
+T4      1.2mm (47mil)                                             Round             12        PTH        86.43mm (3.40inch)
+T5      1.4mm (55mil)                                             Round             2         PTH        8.30mm (0.33inch)
+T6      3mm (118mil)                                              Round             2         PTH        69.18mm (2.72inch)
+T7      2.032mm (80mil)                                           Round             2         NPTH       12.70mm (0.50inch)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              53
+
+Total Processing Time (hh:mm:ss) : 00:00:00
