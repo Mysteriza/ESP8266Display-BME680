@@ -38,11 +38,11 @@ const uint8_t  BME680_MAX_INIT_ATTEMPTS = 15;
 #define SHOW_QNH_UPDATED_ON_PERIODIC  1
 #define QNH_UPDATED_DISPLAY_MS        2000
 
-const char* WIFI_SSID = "Kosan bu nata";
-const char* WIFI_PASS = "immodium";
+const char* WIFI_SSID = "";
+const char* WIFI_PASS = "";
 
-const float OM_LAT = -6.8981f;
-const float OM_LON = 107.6349f;
+const float OM_LAT = ;
+const float OM_LON = ;
 
 const uint16_t WIFI_CONNECT_TIMEOUT_MS = 6000;
 const uint16_t QNH_FETCH_TIMEOUT_MS    = 3000;
@@ -80,6 +80,10 @@ const uint32_t GAS_BASELINE_READY_SAMPLES=2880;
 enum GasStatus { VS_VERY_POOR, VS_POOR, VS_NORMAL, VS_GOOD, VS_EXCELLENT };
 GasStatus lastStatus = VS_NORMAL;
 
+// --- Auto-retry sensor (backoff) ---
+unsigned long nextSensorRetryMillis = 0;
+unsigned long sensorRetryBackoffMs  = 1000;  // start 1s, max 60s
+
 // --- Fwd decl ---
 void initOLED(); void initBME680(); bool selfTestBME680();
 void readBME680SensorData();
@@ -93,15 +97,20 @@ void loadPersistent(); void saveSeaLevelPressure(float p);
 void saveGasBaseline(float b,bool rdy);
 void handleSerialInput();
 void lightSleepDuringOff(unsigned long ms);
+void scheduleSensorRetryInitial();
+void handleSensorAutoRetry();
 
 // Open-Meteo helpers
-static void omBuildPath(String& out);
+static void omBuildPathCurrent(String& out);
+static void omBuildPathHourly(String& out);
 static bool extractPressureMSL_Current(const String& body, float& val);
+static bool extractPressureMSL_Hourly_Last(const String& body, float& val);
 static bool fetchQNHfromOpenMeteo(float &out_hPa);
+static bool httpGetOpenMeteo(const String& path, String& resp);
 
 // -------------------- Setup --------------------
 void setup() {
-  Serial.begin(115200); // kept for manual commands
+  Serial.begin(115200); // for get/reset baseline only
   EEPROM.begin(EEPROM_SIZE);
   loadPersistent();
 
@@ -119,6 +128,7 @@ void setup() {
     if (!selfTestBME680()) {
       currentAppMode = MODE_BME_ERROR;
       displayCenteredStatus("BME680 Fail!","Error Mode");
+      scheduleSensorRetryInitial();
     }
   }
 
@@ -150,7 +160,10 @@ void loop() {
       readBME680SensorData();
       lastSensorReadMillis = millis();
     }
+  } else { // MODE_BME_ERROR
+    handleSensorAutoRetry();
   }
+
   updateOLEDDisplayContent();
   handleSerialInput();
   yield();
@@ -279,6 +292,7 @@ void initBME680(){
     if (attempts>=BME680_MAX_INIT_ATTEMPTS){
       currentAppMode=MODE_BME_ERROR;
       displayCenteredStatus("BME680 Fail!","Error Mode");
+      scheduleSensorRetryInitial();
       return;
     }
   }
@@ -304,6 +318,7 @@ void readBME680SensorData(){
   if (!readBME680SensorReliably(t,h,p_Pa,alt,gas_k)){
     currentAppMode=MODE_BME_ERROR;
     displayCenteredStatus("Sensor Read Fail!","Check Conn.!");
+    scheduleSensorRetryInitial();
     return;
   }
   gTemp=t; gHum=h; gPress=p_Pa/100.0f; gAlt=alt; gGas_kOhm=gas_k;
@@ -338,6 +353,32 @@ bool readBME680SensorReliably(float &temp,float &hum,float &press_Pa,float &alt,
     delay(BME680_RELIABLE_READ_RETRY_DELAY_MS);
   }
   return false;
+}
+
+// -------------------- Auto-retry (backoff) --------------------
+void scheduleSensorRetryInitial(){
+  sensorRetryBackoffMs = 1000;
+  nextSensorRetryMillis = millis() + sensorRetryBackoffMs;
+}
+
+void handleSensorAutoRetry(){
+  if (millis() < nextSensorRetryMillis) return;
+  // try re-init at slower I2C first
+  Wire.setClock(100000);
+  initBME680();
+  if (selfTestBME680()){
+    currentAppMode = MODE_OFFLINE;
+    displayCenteredStatus("Sensor Recovered","");
+    delay(800);
+    lastSensorReadMillis = millis() - SENSOR_READ_INTERVAL_MS; // force immediate read soon
+    oledScreenStateChangeMillis = millis();
+    display.displayOn();
+    return;
+  }
+  // still bad: increase backoff
+  if (sensorRetryBackoffMs < 60000) sensorRetryBackoffMs *= 2;
+  if (sensorRetryBackoffMs > 60000) sensorRetryBackoffMs = 60000;
+  nextSensorRetryMillis = millis() + sensorRetryBackoffMs;
 }
 
 // -------------------- IAQ label --------------------
@@ -407,7 +448,7 @@ void loadPersistent(){
 void saveSeaLevelPressure(float p){ EEPROM.put(SEA_LEVEL_PRESSURE_ADDR,p); EEPROM.commit(); }
 void saveGasBaseline(float b,bool rdy){ EEPROM.put(GAS_BASELINE_ADDR,b); EEPROM.put(GAS_BASELINE_READY_ADDR,(uint8_t)rdy); EEPROM.commit(); }
 
-// -------------------- Serial --------------------
+// -------------------- Serial (opsi baseline) --------------------
 void handleSerialInput(){
   static String cmd="";
   while (Serial.available()){
@@ -438,11 +479,17 @@ void lightSleepDuringOff(unsigned long ms){
 }
 
 // -------------------- Open-Meteo fetch --------------------
-static void omBuildPath(String& out){
+static void omBuildPathCurrent(String& out){
   out.reserve(120);
   out  = "/v1/forecast?latitude="; out += String(OM_LAT, 5);
   out += "&longitude="; out += String(OM_LON, 5);
   out += "&current=pressure_msl";
+}
+static void omBuildPathHourly(String& out){
+  out.reserve(140);
+  out  = "/v1/forecast?latitude="; out += String(OM_LAT, 5);
+  out += "&longitude="; out += String(OM_LON, 5);
+  out += "&hourly=pressure_msl";
 }
 
 static bool extractPressureMSL_Current(const String& body, float& val){
@@ -457,7 +504,25 @@ static bool extractPressureMSL_Current(const String& body, float& val){
   return true;
 }
 
-static bool fetchQNHfromOpenMeteo(float &out_hPa){
+// parse last number in array: ..."pressure_msl":[...,1234.56]
+static bool extractPressureMSL_Hourly_Last(const String& body, float& val){
+  int k = body.lastIndexOf("\"pressure_msl\"");
+  if (k < 0) return false;
+  int lb = body.indexOf('[', k);
+  int rb = body.indexOf(']', lb);
+  if (lb < 0 || rb < 0) return false;
+  String arr = body.substring(lb+1, rb);
+  // find last number token
+  int i = arr.length()-1;
+  while (i>=0 && (arr[i]==' ' || arr[i]==',')) i--;
+  int end=i;
+  while (i>=0 && (isdigit(arr[i]) || arr[i]=='.' || arr[i]=='-' )) i--;
+  if (end < 0) return false;
+  val = arr.substring(i+1, end+1).toFloat();
+  return true;
+}
+
+static bool httpGetOpenMeteo(const String& path, String& resp){
   WiFi.mode(WIFI_STA);
   WiFi.persistent(false);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -475,10 +540,9 @@ static bool fetchQNHfromOpenMeteo(float &out_hPa){
     return false;
   }
 
-  String path; omBuildPath(path);
   client.print(String("GET ") + path + " HTTP/1.0\r\nHost: api.open-meteo.com\r\nConnection: close\r\n\r\n");
 
-  String resp; resp.reserve(768);
+  resp = ""; resp.reserve(1024);
   unsigned long t1 = millis();
   while ((client.connected() || client.available()) && millis() - t1 < QNH_FETCH_TIMEOUT_MS) {
     while (client.available()) resp += (char)client.read();
@@ -490,12 +554,24 @@ static bool fetchQNHfromOpenMeteo(float &out_hPa){
   WiFi.forceSleepBegin();
 
   int hdr = resp.indexOf("\r\n\r\n");
-  String body = (hdr >= 0) ? resp.substring(hdr + 4) : resp;
-  body.trim();
+  if (hdr >= 0) resp = resp.substring(hdr + 4);
+  resp.trim();
+  return resp.length() > 0;
+}
 
-  float v;
-  if (extractPressureMSL_Current(body, v)) {
-    if (v >= 870.0f && v <= 1100.0f) { out_hPa = v; return true; }
+static bool fetchQNHfromOpenMeteo(float &out_hPa){
+  String resp;
+  String path;
+  omBuildPathCurrent(path);
+  if (httpGetOpenMeteo(path, resp)){
+    float v;
+    if (extractPressureMSL_Current(resp, v) && v>=870.0f && v<=1100.0f) { out_hPa=v; return true; }
+  }
+  // fallback hourly
+  omBuildPathHourly(path);
+  if (httpGetOpenMeteo(path, resp)){
+    float v;
+    if (extractPressureMSL_Hourly_Last(resp, v) && v>=870.0f && v<=1100.0f) { out_hPa=v; return true; }
   }
   return false;
 }
