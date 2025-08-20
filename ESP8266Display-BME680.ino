@@ -1,14 +1,13 @@
 #include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME680.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <bsec.h>
 #include <math.h>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
 
-// -------- I2C / OLED / BME --------
 #define I2C_SDA_GPIO 14
 #define I2C_SCL_GPIO 12
 #define OLED_ADDRESS 0x3C
@@ -17,14 +16,12 @@
 #define OLED_RESET -1
 #define BME_ADDRESS  0x76
 
-// -------- UI timing --------
 const unsigned long SENSOR_READ_INTERVAL_MS = 30000;
 const unsigned long OLED_DATA_SCREEN_1_DURATION_MS = 5000;
 const unsigned long OLED_DATA_SCREEN_2_DURATION_MS = 5000;
 const unsigned long OLED_OFF_DURATION_MS =
   SENSOR_READ_INTERVAL_MS - (OLED_DATA_SCREEN_1_DURATION_MS + OLED_DATA_SCREEN_2_DURATION_MS);
 
-// -------- EEPROM layout --------
 #define EEPROM_SIZE 512
 #define SEA_LEVEL_PRESSURE_ADDR 0
 #define GAS_BASELINE_ADDR       4
@@ -36,7 +33,6 @@ const unsigned long OLED_OFF_DURATION_MS =
 #define BSEC_STATE_VALID_ADDR   (BSEC_STATE_ADDR + BSEC_STATE_MAXLEN)
 #define BSEC_STATE_VALID_MAGIC  0xB5EC1A0F
 
-// -------- QNH (Open-Meteo) --------
 #define ENABLE_BOOT_QNH_WIFI          1
 #define ENABLE_PERIODIC_QNH_REFRESH   1
 #define SHOW_QNH_UPDATED_ON_PERIODIC  1
@@ -46,22 +42,18 @@ const char* WIFI_SSID = "Kosan bu nata";
 const char* WIFI_PASS = "immodium";
 const float OM_LAT = -6.914744f;
 const float OM_LON = 107.609810f;
-
 const uint16_t WIFI_CONNECT_TIMEOUT_MS = 6000;
 const uint16_t QNH_FETCH_TIMEOUT_MS    = 3000;
-const unsigned long QNH_REFRESH_INTERVAL_MS = 3UL*60UL*60UL*1000UL;
+const unsigned long QNH_REFRESH_INTERVAL_MS = 1UL*60UL*60UL*1000UL;
 
-// -------- Devices --------
 Adafruit_SSD1306 display(SCREEN_W, SCREEN_H, &Wire, OLED_RESET);
-Adafruit_BME680  bme(&Wire);   // fallback
-Bsec             iaqSensor;    // BSEC
+Bsec             iaqSensor;
 
-// -------- Globals --------
 char   oledBuffer[64];
 float gTemp=0, gHum=0, gPress=0, gAlt=0, gGas_kOhm=0, gGasEMA_kOhm=NAN;
-float gIAQ= NAN, gIAQstatic = NAN; uint8_t gIAQacc = 0, gIAQaccPrev = 0;
+float gIAQ= NAN, gIAQstatic = NAN, gIAQstaticDisp = NAN;
+uint8_t gIAQacc = 0, gIAQaccPrev = 0, gIAQaccDisp = 0;
 float seaLevelPressure_hPa_current = 1012.50f;
-
 float gasBaseline_kOhm = NAN; bool gasBaselineReady=false;
 
 enum AppMode { MODE_OFFLINE, MODE_BME_ERROR };
@@ -75,60 +67,32 @@ unsigned long lastSensorReadMillis=0, oledScreenStateChangeMillis=0;
 unsigned long nextQNHFetchMillis=0;
 #endif
 
-// IAQ feel (local label)
 const float GAS_EMA_ALPHA=0.20f;
+const float IAQ_EMA_ALPHA=0.20f;
 const float BASELINE_ALPHA_UP=0.02f, BASELINE_ALPHA_DOWN=0.001f;
-const float TH_VERY_POOR=0.60f, TH_POOR=0.75f, TH_NORMAL=0.90f, TH_GOOD=1.05f;
-const float STATUS_HYST_KOHM=3.0f;
+
 uint32_t gasSampleCounter=0;
 const uint32_t GAS_BASELINE_READY_SAMPLES=2880;
-enum GasStatus { VS_VERY_POOR, VS_POOR, VS_NORMAL, VS_GOOD, VS_EXCELLENT };
-GasStatus lastStatus = VS_NORMAL;
 
-// Auto-retry
 unsigned long nextSensorRetryMillis = 0;
 unsigned long sensorRetryBackoffMs  = 1000;
 
-// BSEC state save
 unsigned long lastBsecSaveMs = 0;
-const unsigned long BSEC_SAVE_INTERVAL_MS = 2UL*60UL*60UL*1000UL; // 2h baseline
-const unsigned long BSEC_MIN_SAVE_GAP_MS  = 10UL*60UL*1000UL;     // 10 min (event-based)
+const unsigned long BSEC_SAVE_INTERVAL_MS = 2UL*60UL*60UL*1000UL;
+const unsigned long BSEC_MIN_SAVE_GAP_MS  = 10UL*60UL*1000UL;
 
-// BSEC loop flags
 bool bsecActive = false;
 bool bsecHasData = false;
 unsigned long lastBsecDataMs = 0;
 
-// -------- Fwd decl --------
-void initOLED();
-void displayCenteredStatus(const String&, const String&);
-void displaySensorDataScreen1();
-void displaySensorDataScreen2();
-void updateOLEDDisplayContent();
+unsigned long bootMs = 0;
+const unsigned long BOOT_GRACE_MS = 60000;
+const unsigned long NO_DATA_TIMEOUT_BOOT_MS = 45000;
+const unsigned long NO_DATA_TIMEOUT_RUN_MS  = 20000;
 
-bool initBSEC();
-void bsecLoopTick();
-void readBME680SensorData();
+unsigned long acc3_lastSeenMs = 0;
+uint8_t acc_drop2_consec = 0;
 
-void initBME680(); bool selfTestBME680();
-void scheduleSensorRetryInitial(); void handleSensorAutoRetry();
-
-void loadPersistent(); void saveSeaLevelPressure(float p);
-void saveGasBaseline(float b,bool rdy);
-bool loadBsecState(); void saveBsecState();
-
-void handleSerialInput();
-void lightSleepDuringOff(unsigned long ms);
-
-// Open-Meteo helpers
-static void omBuildPathCurrent(String& out);
-static void omBuildPathHourly(String& out);
-static bool extractPressureMSL_Current(const String& body, float& val);
-static bool extractPressureMSL_Hourly_Last(const String& body, float& val);
-static bool httpGetOpenMeteo(const String& path, String& resp);
-static bool fetchQNHfromOpenMeteo(float &out_hPa);
-
-// IAQ buckets (Bosch-like)
 static String iaqCategory(float x){
   if (isnan(x)) return "n/a";
   if (x <=  50) return "Excellent";
@@ -138,101 +102,80 @@ static String iaqCategory(float x){
   if (x <= 300) return "Unhealthy";
   return "Hazardous";
 }
-
-// ================== SETUP ==================
-void setup() {
-  Serial.begin(115200); // minimal CLI
-  EEPROM.begin(EEPROM_SIZE);
-  loadPersistent();
-
-  Wire.begin(I2C_SDA_GPIO, I2C_SCL_GPIO);
-  Wire.setClock(400000);
-
-  initOLED();
-  displayCenteredStatus("BME680 Monitor","Initializing...");
-  delay(500);
-
-  if (!initBSEC()){
-    initBME680();
-    if (!selfTestBME680()){
-      currentAppMode = MODE_BME_ERROR;
-      displayCenteredStatus("BSEC/BME Fail!","Error Mode");
-      scheduleSensorRetryInitial();
-    }
-  }
-
-#if ENABLE_BOOT_QNH_WIFI
-  if (currentAppMode == MODE_OFFLINE) {
-    float qnh;
-    if (fetchQNHfromOpenMeteo(qnh)) {
-      seaLevelPressure_hPa_current = qnh;
-      saveSeaLevelPressure(seaLevelPressure_hPa_current);
-      displayCenteredStatus("QNH Updated", String(seaLevelPressure_hPa_current,2) + " hPa");
-      delay(QNH_UPDATED_DISPLAY_MS);
-    }
-  }
-#endif
-
-  lastSensorReadMillis = millis();
-  oledScreenStateChangeMillis = millis();
-#if ENABLE_PERIODIC_QNH_REFRESH
-  nextQNHFetchMillis = millis() + QNH_REFRESH_INTERVAL_MS;
-#endif
-
-  if (currentAppMode == MODE_OFFLINE) readBME680SensorData();
+static float altitudeScientific(float press_hPa, float qnh_hPa, float t_C, float rh_pct){
+  if (!(press_hPa>0 && qnh_hPa>0)) return NAN;
+  float T = t_C + 273.15f;
+  float es = 6.112f * expf((17.62f*t_C)/(243.12f + t_C));
+  float e  = (rh_pct<=0?0: (rh_pct>=100? es : (rh_pct/100.0f)*es));
+  if (e >= press_hPa*0.99f) e = press_hPa*0.99f;
+  float w = 0.622f * e / (press_hPa - e);
+  float q = w / (1.0f + w);
+  float Tv = T * (1.0f + 0.61f*q);
+  const float Rd = 287.05f, g0 = 9.80665f;
+  float lnratio = logf(qnh_hPa/press_hPa);
+  return (Rd * Tv / g0) * lnratio;
 }
 
-// ================== LOOP ==================
-void loop() {
-  bsecLoopTick(); // keep LP 3s serviced
-
-  if (currentAppMode == MODE_OFFLINE) {
-    if (millis() - lastSensorReadMillis >= SENSOR_READ_INTERVAL_MS) {
-      readBME680SensorData();
-      lastSensorReadMillis = millis();
-    }
-  } else {
-    handleSensorAutoRetry();
-  }
-
-  updateOLEDDisplayContent();
-  handleSerialInput();
-  yield();
-}
-
-// ================== OLED ==================
-void initOLED() {
+void initOLED(){
   display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
   display.clearDisplay();
+  display.setTextWrap(false);
+  display.display();
+}
+void displayInitTwoLines(){
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  int16_t bx,by; uint16_t bw,bh;
+  display.setFont(&FreeSans12pt7b);
+  display.getTextBounds("BME680", 0, 0, &bx,&by,&bw,&bh);
+  display.setCursor((SCREEN_W - bw)/2, 18);
+  display.print("BME680");
+
+  display.setFont(&FreeSans9pt7b);
+  display.getTextBounds("Initializing...", 0, 0, &bx,&by,&bw,&bh);
+  display.setCursor((SCREEN_W - bw)/2, 48);
+  display.print("Initializing...");
   display.display();
 }
 void displayCenteredStatus(const String& l1,const String& l2){
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  int16_t x1,y1; uint16_t w,h;
-  display.getTextBounds(l1,0,0,&x1,&y1,&w,&h);
-  display.setCursor((SCREEN_W - (int)w)/2, 16); display.print(l1);
-  display.getTextBounds(l2,0,0,&x1,&y1,&w,&h);
-  display.setCursor((SCREEN_W - (int)w)/2, 40); display.print(l2);
+  int16_t bx,by; uint16_t bw,bh;
+  display.setFont(&FreeSans12pt7b);
+  display.getTextBounds(l1, 0, 0, &bx,&by,&bw,&bh);
+  display.setCursor((SCREEN_W - bw)/2, 18);
+  display.print(l1);
+  display.getTextBounds(l2, 0, 0, &bx,&by,&bw,&bh);
+  display.setCursor((SCREEN_W - bw)/2, 48);
+  display.print(l2);
   display.display();
 }
 void displaySensorDataScreen1(){
-  display.setTextColor(SSD1306_WHITE); display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
   display.clearDisplay();
-  display.setCursor(0,0);  snprintf(oledBuffer,sizeof(oledBuffer),"Temp  %.1f C", gTemp); display.print(oledBuffer);
-  display.setCursor(0,16); snprintf(oledBuffer,sizeof(oledBuffer),"Hum   %.1f %%", gHum);  display.print(oledBuffer);
-  display.setCursor(0,32); snprintf(oledBuffer,sizeof(oledBuffer),"Pres  %d hPa", (int)lroundf(gPress)); display.print(oledBuffer);
-  display.setCursor(0,48); snprintf(oledBuffer,sizeof(oledBuffer),"Alt   %d m",   (int)lroundf(gAlt));   display.print(oledBuffer);
+  display.setFont(&FreeSans9pt7b);
+  snprintf(oledBuffer,sizeof(oledBuffer),"T: %.2f C", gTemp);
+  display.setCursor(0, 14); display.print(oledBuffer);
+  snprintf(oledBuffer,sizeof(oledBuffer),"H: %.2f %%", gHum);
+  display.setCursor(0, 30); display.print(oledBuffer);
+  snprintf(oledBuffer,sizeof(oledBuffer),"P: %.2f hPa", gPress);
+  display.setCursor(0, 46); display.print(oledBuffer);
+  snprintf(oledBuffer,sizeof(oledBuffer),"Alt: %d mdpl", (int)lroundf(gAlt));
+  display.setCursor(0, 62); display.print(oledBuffer);
   display.display();
 }
 void displaySensorDataScreen2(){
-  display.setTextColor(SSD1306_WHITE); display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
   display.clearDisplay();
-  display.setCursor(0,0);  snprintf(oledBuffer,sizeof(oledBuffer),"Gas  %.1f kOhm", gGasEMA_kOhm); display.print(oledBuffer);
-  display.setCursor(0,16); snprintf(oledBuffer,sizeof(oledBuffer),"IAQs %.1f (%u)", gIAQstatic, gIAQacc); display.print(oledBuffer);
-  display.setCursor(0,32); display.print("Air Quality:");
-  display.setCursor(0,48); display.print(iaqCategory(gIAQstatic));
+  display.setFont(&FreeSans9pt7b);
+  snprintf(oledBuffer,sizeof(oledBuffer),"G: %.1f kOhm", gGasEMA_kOhm);
+  display.setCursor(0, 14); display.print(oledBuffer);
+  snprintf(oledBuffer,sizeof(oledBuffer),"IAQ: %.1f", gIAQstaticDisp);
+  display.setCursor(0, 30); display.print(oledBuffer);
+  snprintf(oledBuffer,sizeof(oledBuffer),"Acc: %u", gIAQaccDisp);
+  display.setCursor(0, 46); display.print(oledBuffer);
+  display.setCursor(0, 62); display.print(String("AQS: ") + iaqCategory(gIAQstaticDisp));
   display.display();
 }
 void updateOLEDDisplayContent(){
@@ -266,7 +209,7 @@ void updateOLEDDisplayContent(){
             saveSeaLevelPressure(seaLevelPressure_hPa_current);
 #if SHOW_QNH_UPDATED_ON_PERIODIC
             display.ssd1306_command(SSD1306_DISPLAYON);
-            display.clearDisplay(); display.display(); // ghost-clear
+            display.clearDisplay(); display.display();
             displayCenteredStatus("QNH Updated", String(seaLevelPressure_hPa_current,2) + " hPa");
             delay(QNH_UPDATED_DISPLAY_MS);
             display.ssd1306_command(SSD1306_DISPLAYOFF);
@@ -288,7 +231,7 @@ void updateOLEDDisplayContent(){
         currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
         oledScreenStateChangeMillis = now;
         display.ssd1306_command(SSD1306_DISPLAYON);
-        display.clearDisplay(); display.display(); // ghost-clear
+        display.clearDisplay(); display.display();
         delay(50);
       } else {
         return;
@@ -305,14 +248,14 @@ void updateOLEDDisplayContent(){
     displaySensorDataScreen2();
   } else if (currentOledScreenState == OLED_STATE_ERROR_SCREEN){
     display.clearDisplay();
-    display.setTextColor(SSD1306_WHITE); display.setTextSize(1);
-    display.setCursor(20,16); display.print("Sensor Error");
-    display.setCursor(20,40); display.print("Check Conn.!");
+    display.setFont(&FreeSans12pt7b);
+    display.setCursor(8, 24); display.print("Sensor Error");
+    display.setCursor(8, 54); display.print("Check Conn!");
     display.display();
   }
 }
 
-// ================== BSEC ==================
+// -------- BSEC core --------
 bool loadBsecState(){
   uint32_t magic=0; EEPROM.get(BSEC_STATE_VALID_ADDR, magic);
   if (magic != BSEC_STATE_VALID_MAGIC) return false;
@@ -330,6 +273,9 @@ void saveBsecState(){
   EEPROM.commit();
 }
 bool initBSEC(){
+  Wire.beginTransmission(BME_ADDRESS); Wire.write(0xE0); Wire.write(0xB6); Wire.endTransmission();
+  delay(10);
+
   iaqSensor.begin(BME_ADDRESS, Wire);
   if (iaqSensor.bsecStatus < BSEC_OK || iaqSensor.bme68xStatus != BME68X_OK) return false;
 
@@ -341,17 +287,18 @@ bool initBSEC(){
     BSEC_OUTPUT_RAW_PRESSURE,
     BSEC_OUTPUT_RAW_GAS
   };
-  iaqSensor.updateSubscription(list, sizeof(list)/sizeof(list[0]), BSEC_SAMPLE_RATE_LP); // ~3 s
+  iaqSensor.updateSubscription(list, sizeof(list)/sizeof(list[0]), BSEC_SAMPLE_RATE_LP);
   if (iaqSensor.bsecStatus < BSEC_OK || iaqSensor.bme68xStatus != BME68X_OK) return false;
 
   loadBsecState();
   lastBsecSaveMs = millis();
   gIAQaccPrev = iaqSensor.iaqAccuracy;
+  gIAQaccDisp = gIAQaccPrev;
+  acc3_lastSeenMs = 0; acc_drop2_consec = 0;
+
   bsecActive = true; bsecHasData = false;
   return true;
 }
-
-// Poll BSEC each loop; copy outputs when ready
 void bsecLoopTick(){
   if (!bsecActive) return;
   if (!iaqSensor.run()) return;
@@ -364,48 +311,51 @@ void bsecLoopTick(){
   gPress     = iaqSensor.pressure / 100.0f;
   gGas_kOhm  = iaqSensor.gasResistance / 1000.0f;
 
-  float ratio = gPress / seaLevelPressure_hPa_current;
-  gAlt = 44330.0f * (1.0f - powf(ratio, 0.1903f));
+  float alt_tv = altitudeScientific(gPress, seaLevelPressure_hPa_current, gTemp, gHum);
+  gAlt = isnan(alt_tv) ? (44330.0f * (1.0f - powf(gPress/seaLevelPressure_hPa_current, 0.1903f))) : alt_tv;
 
   bsecHasData = true;
   lastBsecDataMs = millis();
 
-  // periodic save
+  if (isnan(gGasEMA_kOhm)) gGasEMA_kOhm = gGas_kOhm;
+  else gGasEMA_kOhm = GAS_EMA_ALPHA*gGas_kOhm + (1.0f-GAS_EMA_ALPHA)*gGasEMA_kOhm;
+
+  if (isnan(gIAQstaticDisp)) gIAQstaticDisp = gIAQstatic;
+  else gIAQstaticDisp = IAQ_EMA_ALPHA*gIAQstatic + (1.0f - IAQ_EMA_ALPHA)*gIAQstaticDisp;
+
   if (millis() - lastBsecSaveMs >= BSEC_SAVE_INTERVAL_MS && gIAQacc >= 3){
     saveBsecState(); lastBsecSaveMs = millis();
   }
-  // event-based save when accuracy rises (>=2, esp. reach 3)
   if (gIAQacc > gIAQaccPrev && gIAQacc >= 2) {
     if (millis() - lastBsecSaveMs >= BSEC_MIN_SAVE_GAP_MS){
       saveBsecState(); lastBsecSaveMs = millis();
     }
   }
-  gIAQaccPrev = gIAQacc;
-}
 
-// Use latest values, then EMA/baseline/hysteresis and wake OLED
-void readBME680SensorData(){
-  if (bsecActive){
-    if (!bsecHasData || (millis() - lastBsecDataMs > 20000)){ // >20 s no data in LP
-      currentAppMode = MODE_BME_ERROR;
-      displayCenteredStatus("BSEC Read Fail!","Check Conn.!");
-      scheduleSensorRetryInitial();
-      return;
+  if (gIAQacc >= 3){
+    gIAQaccDisp = 3; acc3_lastSeenMs = millis(); acc_drop2_consec = 0;
+  } else if (gIAQacc == 2 && gIAQaccDisp == 3){
+    acc_drop2_consec++;
+    if (acc_drop2_consec >= 2 || (millis() - acc3_lastSeenMs) >= 600000UL){
+      gIAQaccDisp = 2;
     }
   } else {
-    if (!bme.performReading()){
-      currentAppMode=MODE_BME_ERROR;
-      displayCenteredStatus("BME680 Read Fail!","Check Conn.!");
-      scheduleSensorRetryInitial();
-      return;
-    }
-    gTemp=bme.temperature; gHum=bme.humidity;
-    gPress=bme.pressure/100.0f; gAlt=bme.readAltitude(seaLevelPressure_hPa_current);
-    gGas_kOhm=bme.gas_resistance/1000.0f;
+    gIAQaccDisp = gIAQacc; acc_drop2_consec = 0;
   }
 
-  if (isnan(gGasEMA_kOhm)) gGasEMA_kOhm = gGas_kOhm;
-  else gGasEMA_kOhm = GAS_EMA_ALPHA*gGas_kOhm + (1.0f-GAS_EMA_ALPHA)*gGasEMA_kOhm;
+  gIAQaccPrev = gIAQacc;
+}
+void readBME680SensorData(){
+  if (!bsecActive) return;
+  unsigned long noDataTimeout = (millis() - bootMs < BOOT_GRACE_MS)
+                                ? NO_DATA_TIMEOUT_BOOT_MS
+                                : NO_DATA_TIMEOUT_RUN_MS;
+  if (!bsecHasData || (millis() - lastBsecDataMs > noDataTimeout)){
+    currentAppMode = MODE_BME_ERROR;
+    displayCenteredStatus("BSEC Read Fail!","Check Conn.!");
+    scheduleSensorRetryInitial();
+    return;
+  }
 
   if (isnan(gasBaseline_kOhm)) gasBaseline_kOhm = gGasEMA_kOhm;
   float d = gGasEMA_kOhm - gasBaseline_kOhm;
@@ -419,41 +369,11 @@ void readBME680SensorData(){
   oledScreenStateChangeMillis = millis();
   currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
   display.ssd1306_command(SSD1306_DISPLAYON);
-  display.clearDisplay(); display.display(); // ghost-clear
-  delay(50);
+  display.clearDisplay(); display.display();
+  delay(40);
 }
 
-// ================== Fallback BME680 ==================
-void initBME680(){
-  uint8_t attempts=0;
-  while(!bme.begin(BME_ADDRESS)){
-    attempts++;
-    displayCenteredStatus("BME680 Init Fail!","Retry "+String(attempts));
-    delay(1500);
-    if (attempts>=15){
-      currentAppMode=MODE_BME_ERROR;
-      displayCenteredStatus("BME680 Fail!","Error Mode");
-      scheduleSensorRetryInitial();
-      return;
-    }
-  }
-  bme.setTemperatureOversampling(BME680_OS_8X);
-  bme.setHumidityOversampling(BME680_OS_2X);
-  bme.setPressureOversampling(BME680_OS_4X);
-  bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-  bme.setGasHeater(320,150);
-}
-bool selfTestBME680(){
-  for (uint8_t i=0;i<3;i++){
-    if (bme.performReading()){
-      if (!isnan(bme.temperature) && !isnan(bme.humidity) && !isnan(bme.pressure)) return true;
-    }
-    delay(100);
-  }
-  return false;
-}
-
-// ================== Auto-retry (backoff) ==================
+// -------- Retry / Persist / Sleep --------
 void scheduleSensorRetryInitial(){ sensorRetryBackoffMs = 1000; nextSensorRetryMillis = millis() + sensorRetryBackoffMs; }
 void handleSensorAutoRetry(){
   if (millis() < nextSensorRetryMillis) return;
@@ -462,19 +382,7 @@ void handleSensorAutoRetry(){
     currentAppMode = MODE_OFFLINE;
     bsecActive = true; bsecHasData = false;
     displayCenteredStatus("Sensor Recovered","");
-    delay(800);
-    lastSensorReadMillis = millis() - SENSOR_READ_INTERVAL_MS;
-    oledScreenStateChangeMillis = millis();
-    display.ssd1306_command(SSD1306_DISPLAYON);
-    display.clearDisplay(); display.display();
-    return;
-  }
-  initBME680();
-  if (selfTestBME680()){
-    currentAppMode = MODE_OFFLINE;
-    bsecActive = false;
-    displayCenteredStatus("Sensor Recovered","");
-    delay(800);
+    delay(500);
     lastSensorReadMillis = millis() - SENSOR_READ_INTERVAL_MS;
     oledScreenStateChangeMillis = millis();
     display.ssd1306_command(SSD1306_DISPLAYON);
@@ -485,8 +393,6 @@ void handleSensorAutoRetry(){
   if (sensorRetryBackoffMs > 60000) sensorRetryBackoffMs = 60000;
   nextSensorRetryMillis = millis() + sensorRetryBackoffMs;
 }
-
-// ================== Persistence ==================
 void loadPersistent(){
   uint32_t magic=0; EEPROM.get(EEPROM_MAGIC_ADDR, magic);
   if (magic != EEPROM_MAGIC_VALUE){
@@ -511,8 +417,6 @@ void loadPersistent(){
 }
 void saveSeaLevelPressure(float p){ EEPROM.put(SEA_LEVEL_PRESSURE_ADDR,p); EEPROM.commit(); }
 void saveGasBaseline(float b,bool rdy){ EEPROM.put(GAS_BASELINE_ADDR,b); EEPROM.put(GAS_BASELINE_READY_ADDR,(uint8_t)rdy); EEPROM.commit(); }
-
-// ================== Serial (baseline ops) ==================
 void handleSerialInput(){
   static String cmd="";
   while (Serial.available()){
@@ -531,29 +435,24 @@ void handleSerialInput(){
     } else { cmd+=c; }
   }
 }
-
-// ================== BSEC-aware light sleep ==================
 void lightSleepDuringOff(unsigned long ms){
   WiFi.persistent(false);
   WiFi.mode(WIFI_OFF);
-  WiFi.forceSleepBegin();                 // radio off
-
+  WiFi.forceSleepBegin();
   unsigned long end = millis() + ms;
-  while ((long)(end - millis()) > 0) {   // signed compare
-    unsigned long slice = 350;           // ~0.35 s (kejar LP 3 s)
+  while ((long)(end - millis()) > 0) {
+    unsigned long slice = 300;
     unsigned long remain = end - millis();
     if (slice > remain) slice = remain;
-
-    delay(slice);                        // idle
-    bsecLoopTick();                      // keep BSEC fed
+    delay(slice);
+    bsecLoopTick();
     yield();
   }
-
-  WiFi.forceSleepWake();                 // wake core (WiFi tetap OFF)
+  WiFi.forceSleepWake();
   delay(2);
 }
 
-// ================== Open-Meteo fetch ==================
+// -------- Open-Meteo (QNH) --------
 static void omBuildPathCurrent(String& out){
   out.reserve(120);
   out  = "/v1/forecast?latitude="; out += String(OM_LAT, 5);
@@ -584,7 +483,7 @@ static bool extractPressureMSL_Hourly_Last(const String& body, float& val){
   int rb = body.indexOf(']', lb);
   if (lb < 0 || rb < 0) return false;
   String arr = body.substring(lb+1, rb);
-  int i = arr.length()-1; while (i>=0 && (arr[i]==' ' || arr[i]==',')) i--;;
+  int i = arr.length()-1; while (i>=0 && (arr[i]==' ' || arr[i]==',')) i--;
   int end=i; while (i>=0 && (isdigit(arr[i]) || arr[i]=='.' || arr[i]=='-')) i--;
   if (end < 0) return false;
   val = arr.substring(i+1, end+1).toFloat();
@@ -595,18 +494,21 @@ static bool httpGetOpenMeteo(const String& path, String& resp){
   WiFi.persistent(false);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   unsigned long t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < WIFI_CONNECT_TIMEOUT_MS) delay(50);
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < WIFI_CONNECT_TIMEOUT_MS) {
+    delay(50); bsecLoopTick(); yield();
+  }
   if (WiFi.status() != WL_CONNECTED) { WiFi.mode(WIFI_OFF); WiFi.forceSleepBegin(); return false; }
-
   WiFiClient client;
-  if (!client.connect("api.open-meteo.com", 80)) { WiFi.disconnect(true); WiFi.mode(WIFI_OFF); WiFi.forceSleepBegin(); return false; }
-
+  if (!client.connect("api.open-meteo.com", 80)) {
+    WiFi.disconnect(true); WiFi.mode(WIFI_OFF); WiFi.forceSleepBegin();
+    return false;
+  }
   client.print(String("GET ") + path + " HTTP/1.0\r\nHost: api.open-meteo.com\r\nConnection: close\r\n\r\n");
   resp = ""; resp.reserve(768);
   unsigned long t1 = millis();
   while ((client.connected() || client.available()) && millis() - t1 < QNH_FETCH_TIMEOUT_MS) {
-    while (client.available()) resp += (char)client.read();
-    delay(1);
+    while (client.available()) { resp += (char)client.read(); }
+    delay(10); bsecLoopTick(); yield();
   }
   client.stop();
   WiFi.disconnect(true); WiFi.mode(WIFI_OFF); WiFi.forceSleepBegin();
@@ -625,4 +527,63 @@ static bool fetchQNHfromOpenMeteo(float &out_hPa){
     float v; if (extractPressureMSL_Hourly_Last(resp, v) && v>=870.0f && v<=1100.0f) { out_hPa=v; return true; }
   }
   return false;
+}
+
+// ========== SETUP / LOOP ==========
+void setup() {
+  EEPROM.begin(EEPROM_SIZE);
+  loadPersistent();
+
+  Wire.begin(I2C_SDA_GPIO, I2C_SCL_GPIO);
+  Wire.setClock(100000);
+  delay(80);
+
+  initOLED();
+  displayInitTwoLines();
+  delay(150);
+
+  if (!initBSEC()){
+    currentAppMode = MODE_BME_ERROR;
+    displayCenteredStatus("BSEC/BME Fail!","Error Mode");
+    scheduleSensorRetryInitial();
+  }
+
+  Wire.setClock(400000);
+
+#if ENABLE_BOOT_QNH_WIFI
+  if (currentAppMode == MODE_OFFLINE) {
+    float qnh;
+    if (fetchQNHfromOpenMeteo(qnh)) {
+      seaLevelPressure_hPa_current = qnh;
+      saveSeaLevelPressure(seaLevelPressure_hPa_current);
+      displayCenteredStatus("QNH Updated", String(seaLevelPressure_hPa_current,2) + " hPa");
+      delay(QNH_UPDATED_DISPLAY_MS);
+    }
+  }
+#endif
+
+  lastSensorReadMillis = millis();
+  oledScreenStateChangeMillis = millis();
+#if ENABLE_PERIODIC_QNH_REFRESH
+  nextQNHFetchMillis = millis() + QNH_REFRESH_INTERVAL_MS;
+#endif
+
+  bootMs = millis();
+  if (currentAppMode == MODE_OFFLINE) readBME680SensorData();
+}
+void loop() {
+  bsecLoopTick();
+
+  if (currentAppMode == MODE_OFFLINE) {
+    if (millis() - lastSensorReadMillis >= SENSOR_READ_INTERVAL_MS) {
+      readBME680SensorData();
+      lastSensorReadMillis = millis();
+    }
+  } else {
+    handleSensorAutoRetry();
+  }
+
+  updateOLEDDisplayContent();
+  handleSerialInput();
+  yield();
 }
