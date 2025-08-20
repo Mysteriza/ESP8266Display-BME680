@@ -6,8 +6,9 @@ The device is designed for intelligent, low-power operation and features advance
 
 [![Last Updated](https://img.shields.io/github/last-commit/mysteriza/ESP8266Display-BME680?label=Last%20Updated)](https://github.com/mysteriza/ESP8266Display-BME680/commits/main)
 
-<img src="https://github.com/user-attachments/assets/a5e39dbc-0e6a-4b88-b850-ccc1f0e625ef" alt="ESP8266 Device Front View" width="400">
-<img src="https://github.com/user-attachments/assets/25655a07-ef23-4456-b626-bd6670e3cddc" alt="ESP8266 Device Side View" width="400">
+<img src="https://github.com/user-attachments/assets/dc004bd2-9f50-4d7b-9746-8caaaf38583f" alt="ESP8266 Device Front View" width="400">
+<img src="https://github.com/user-attachments/assets/871008fa-13bc-48c8-884a-2664ee2e2b26" alt="ESP8266 Device Side View" width="400">
+<img src="https://github.com/user-attachments/assets/62e0e651-10e9-4774-bc52-773508a8fb07" alt="ESP8266 Device Side View" width="400">
 
 ## Key Features
 
