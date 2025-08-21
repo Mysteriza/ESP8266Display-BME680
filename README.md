@@ -13,9 +13,9 @@ The device is designed for intelligent, low-power operation and features advance
 ## Key Features
 
 ### Core Sensing & IAQ
-* **Bosch BSEC Integration:** Utilizes Bosch's proprietary BSEC algorithm for reliable **Indoor Air Quality (IAQ)** index calculation (0-500 scale).
+* **Bosch BSEC Integration:** Utilizes Bosch's proprietary BSEC algorithm for reliable **Indoor Air Quality (IAQ)** index calculation (0–500 scale).
 * **Comprehensive Data:** Measures Temperature, Humidity, Barometric Pressure, Gas Resistance (VOCs), and calculates Altitude.
-* **Data Persistence:** Saves the BSEC calibration state to EEPROM, allowing the sensor to maintain its accuracy across power cycles without needing a lengthy re-calibration period.
+* **Data Persistence:** Saves the BSEC calibration state to EEPROM every **4 hours**, but only when the IAQ accuracy level is high (`iaqAccuracy==3`). This minimizes flash wear and ensures stable calibration across power cycles.
 
 ### Advanced Data Processing
 * **Variance-Aware IAQ Smoothing:** Implements an adaptive smoothing algorithm on the Static IAQ value, providing a more stable and human-readable output that filters out momentary noise while still reacting to significant environmental changes.
@@ -24,7 +24,8 @@ The device is designed for intelligent, low-power operation and features advance
 * **Altitude Filtering:** Uses a median filter and an Exponential Moving Average (EMA) to provide a smooth and reliable altitude reading, rejecting spurious outliers.
 
 ### Connectivity & Accuracy
-* **Automatic QNH Updates:** Optionally connects to Wi-Fi on boot and periodically (once per hour) to fetch the current sea-level pressure (QNH) from the Open-Meteo API for the specified latitude/longitude. This dramatically improves the accuracy of altitude calculations.
+* **NTP Sync on Boot:** The device synchronizes its clock with an NTP server once at startup. No periodic NTP re-sync is performed, conserving energy.  
+* **Automatic QNH Updates:** Connects to Wi-Fi periodically (every **1 hour**) to fetch the current sea-level pressure (QNH) from the Open-Meteo API for the specified latitude/longitude. This dramatically improves the accuracy of altitude calculations.  
 * **Scientific Altitude Formula:** Employs a more precise altitude formula that accounts for temperature and humidity, providing better results than the standard barometric formula alone.
 
 ### Hardware & Power Management
@@ -72,20 +73,17 @@ The project uses the following default I2C pins for both the OLED display and th
     * Search for and install:
         * "Adafruit GFX Library"
         * "Adafruit SSD1306"
-3.  **Install Bosch BSEC Library:**
-    * Download the latest release of the BSEC library from the [official Bosch Sensortec GitHub](https://github.com/boschsensortec/BSEC-Arduino-library).
-    * In the Arduino IDE, go to `Sketch > Include Library > Add .ZIP Library...` and select the downloaded ZIP file.
-    * **Important:** You must also agree to the license agreement provided by Bosch. Follow the on-screen instructions or documentation from Bosch.
-4.  **Configure the Sketch:**
+        * "BSEC Software Library"
+3.  **Configure the Sketch:**
     * Open the `.ino` file in the Arduino IDE.
     * **Modify Wi-Fi credentials and location** for the QNH feature:
         ```cpp
         const char* WIFI_SSID = "YourWiFi_SSID";
         const char* WIFI_PASS = "YourWiFi_Password";
-        const float OM_LAT = -6.914744f; // Your Latitude
-        const float OM_LON = 107.609810f; // Your Longitude
+        const float OM_LAT = -6.914744f; // Change to Your Latitude
+        const float OM_LON = 107.609810f; // Change to Your Longitude
         ```
-5.  **Upload to ESP8266:**
+4.  **Upload to ESP8266:**
     * Go to `Tools > Board` and select your specific ESP8266 board (e.g., "NodeMCU 1.0 (ESP-12E Module)").
     * Connect your board and select the correct COM port.
     * Click "Upload".
