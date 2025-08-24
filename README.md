@@ -2,13 +2,15 @@
 
 A high-precision, portable environmental monitor using an ESP8266, a Bosch BME680 sensor, and an integrated OLED display. This project leverages the official **Bosch BSEC (Bosch Sensortec Environmental Cluster) software library** to provide accurate Indoor Air Quality (IAQ) readings, alongside temperature, humidity, pressure, and altitude.
 
-The device is designed for intelligent, low-power operation and features advanced algorithms for data smoothing, baseline self-calibration, and robust error handling. While it can operate fully offline, it enhances altitude accuracy by periodically fetching local sea-level pressure (QNH) data from the internet.
+The device is designed for continuous operation with robust error handling, intelligent baseline management, and an **always-on OLED display** that switches between screens every few seconds. It also supports periodic fetching of QNH (sea-level pressure) data from the internet to enhance altitude accuracy.
 
 [![Last Updated](https://img.shields.io/github/last-commit/mysteriza/ESP8266Display-BME680?label=Last%20Updated)](https://github.com/mysteriza/ESP8266Display-BME680/commits/main)
 
 <img src="https://github.com/user-attachments/assets/dc004bd2-9f50-4d7b-9746-8caaaf38583f" alt="ESP8266 Device Front View" width="400">
 <img src="https://github.com/user-attachments/assets/871008fa-13bc-48c8-884a-2664ee2e2b26" alt="ESP8266 Device Side View" width="400">
 <img src="https://github.com/user-attachments/assets/62e0e651-10e9-4774-bc52-773508a8fb07" alt="ESP8266 Device Side View" width="400">
+
+---
 
 ## Key Features
 
@@ -18,71 +20,76 @@ The device is designed for intelligent, low-power operation and features advance
 * **Data Persistence:** Saves the BSEC calibration state to EEPROM every **4 hours**, but only when the IAQ accuracy level is high (`iaqAccuracy==3`). This minimizes flash wear and ensures stable calibration across power cycles.
 
 ### Advanced Data Processing
-* **Variance-Aware IAQ Smoothing:** Implements an adaptive smoothing algorithm on the Static IAQ value, providing a more stable and human-readable output that filters out momentary noise while still reacting to significant environmental changes.
-* **Self-Adapting Gas Baseline:** The gas resistance baseline automatically and slowly adapts to the long-term environment, ensuring IAQ readings remain relevant over time.
-* **Transport-Aware Logic:** Intelligently freezes baseline calibration when rapid changes in pressure, humidity, or IAQ are detected (e.g., moving the device between rooms or outdoors), preventing incorrect calibration drift.
-* **Altitude Filtering:** Uses a median filter and an Exponential Moving Average (EMA) to provide a smooth and reliable altitude reading, rejecting spurious outliers.
+* **Variance-Aware IAQ Smoothing:** Implements an adaptive smoothing algorithm on the Static IAQ value, providing a more stable and human-readable output.
+* **Self-Adapting Gas Baseline:** Automatically adapts over time for long-term environmental stability.
+* **Transport-Aware Logic:** Freezes baseline calibration when rapid environmental changes are detected (e.g., device movement).
+* **Altitude Filtering:** Combines a median filter with an EMA for smooth and reliable altitude readings.
 
 ### Connectivity & Accuracy
-* **NTP Sync on Boot:** The device synchronizes its clock with an NTP server once at startup. No periodic NTP re-sync is performed, conserving energy.  
-* **Automatic QNH Updates:** Connects to Wi-Fi periodically (every **1 hour**) to fetch the current sea-level pressure (QNH) from the Open-Meteo API for the specified latitude/longitude. This dramatically improves the accuracy of altitude calculations.  
-* **Scientific Altitude Formula:** Employs a more precise altitude formula that accounts for temperature and humidity, providing better results than the standard barometric formula alone.
+* **Automatic QNH Updates:** Connects to Wi-Fi every **1 hour** to fetch the current sea-level pressure (QNH) from the Open-Meteo API.  
+* **Scientific Altitude Formula:** Accounts for temperature and humidity for improved altitude accuracy.
 
-### Hardware & Power Management
-* **OLED Display Cycle:**
-    * **Screen 1 (5s):** Temperature, Humidity, Pressure, Altitude.
-    * **Screen 2 (5s):** Gas Resistance, Static IAQ, IAQ Accuracy, and Air Quality Status (AQS).
-    * **Power Save (20s):** The display turns off to conserve energy.
-* **Efficient Operation:** The main sensor reading loop runs every 30 seconds. During the 20-second display-off phase, the device enters a light sleep mode (disabling Wi-Fi) to minimize power consumption while continuing to process sensor data.
-* **Robustness:** Includes an auto-retry mechanism with exponential backoff for sensor initialization and a watchdog to automatically restart the device if it stalls.
+### Display & Power
+* **Always-On Display (AOD):** OLED display remains active continuously, cycling through two screens:
+  * **Screen 1 (5s):** Temperature, Humidity, Pressure, Altitude.  
+  * **Screen 2 (5s):** Gas Resistance, Static IAQ, IAQ Accuracy, and Air Quality Status (AQS).  
+* **Incremental Refresh:** Screen only updates when values change beyond thresholds, reducing flicker and improving efficiency.
+* **Overheat Protection:**  
+  * If temperature ≥ **45°C**, device enters "HOT HOLD" mode.  
+  * OLED shows a warning with a thermometer icon and the text **Overheat**, which shifts position every 60s to prevent burn-in.  
+  * Sensor reads less frequently (every 60s) until the temperature drops below **41°C**, at which point normal operation resumes.
+
+### Robustness
+* **Error Recovery:** Auto-retry mechanism for BSEC initialization with exponential backoff.
+* **Watchdog Handling:** Automatically restarts if stalled.
+* **Offline Operation:** Continues to work without Wi-Fi, using last known QNH or default fallback.
+
+---
 
 ## Hardware Components
-* **ESP8266 Board with Integrated OLED:** with a built-in 0.96" SSD1306 OLED.
-* **Bosch BME680 Sensor:** The core environmental sensor connected via I2C.
-* **TP4056:** For LiPo battery charging and management.
-* **LiPo Battery:** 1500 mAh for portable use.
-* **Power Switch:** For turning the device on and off.
-* **Custom PCB & Enclosure:** To house the components neatly.
+* **ESP8266 Board with Integrated OLED (0.96" SSD1306).**
+* **Bosch BME680 Sensor** (I2C).
+* **TP4056** for LiPo battery charging and management.
+* **LiPo Battery** (e.g., 1500–2100 mAh).
+* **Power Switch** for on/off control.
+* **Custom PCB & Enclosure** for portability.
+
+---
 
 ## Pin Configuration
-The project uses the following default I2C pins for both the OLED display and the BME680 sensor:
-* **I2C SDA (Data):** `GPIO 14`
-* **I2C SCL (Clock):** `GPIO 12`
-* **OLED I2C Address:** `0x3C`
-* **BME680 I2C Address:** `0x76`
+* **I2C SDA (Data):** `GPIO 14`  
+* **I2C SCL (Clock):** `GPIO 12`  
+* **OLED I2C Address:** `0x3C`  
+* **BME680 I2C Address:** `0x76`  
 
-**Note:** On most ESP8266 boards with an integrated OLED, these pins are pre-wired.
+---
 
 ## Software Requirements
-* Arduino IDE
-* ESP8266 Board Package for Arduino IDE
-* **Libraries:**
-    * `Wire.h` (Built-in)
-    * `EEPROM.h` (Built-in)
-    * `Adafruit GFX Library` (by Adafruit)
-    * `Adafruit SSD1306` (by Adafruit)
-    * `Bosch BSEC Software Library` (by Bosch Sensortec)
+* Arduino IDE  
+* ESP8266 Board Package for Arduino IDE  
+* Libraries:  
+  * `Wire.h` (Built-in)  
+  * `EEPROM.h` (Built-in)  
+  * `Adafruit GFX Library`  
+  * `Adafruit SSD1306`  
+  * `Bosch BSEC Software Library`  
+
+---
 
 ## Installation & Setup
-1.  **Install Arduino IDE & ESP8266 Core:**
-    * Install the latest [Arduino IDE](https://www.arduino.cc/en/software).
-    * In `File > Preferences`, add `http://arduino.esp8266.com/stable/package_esp8266com_index.json` to "Additional Board Manager URLs".
-    * Go to `Tools > Board > Boards Manager...`, search for "esp8266", and install the package.
-2.  **Install Adafruit Libraries:**
-    * In Arduino IDE, go to `Sketch > Include Library > Manage Libraries...`.
-    * Search for and install:
-        * "Adafruit GFX Library"
-        * "Adafruit SSD1306"
-        * "BSEC Software Library"
-3.  **Configure the Sketch:**
-    * Open the `.ino` file in the Arduino IDE.
-    * **Modify Wi-Fi credentials and location** for the QNH feature:
-        ```cpp
-        const char* WIFI_SSID = "YourWiFi_SSID";
-        const char* WIFI_PASS = "YourWiFi_Password";
-        const float OM_LAT = -6.914744f; // Change to Your Latitude
-        const float OM_LON = 107.609810f; // Change to Your Longitude
-        ```
+1. **Install Arduino IDE & ESP8266 Core:**  
+   Add `http://arduino.esp8266.com/stable/package_esp8266com_index.json` to Board Manager URLs.  
+2. **Install Required Libraries** via Library Manager:  
+   * "Adafruit GFX Library"  
+   * "Adafruit SSD1306"  
+   * "BSEC Software Library"  
+3. **Configure the Sketch:**  
+   ```cpp
+   const char* WIFI_SSID = "YourWiFi_SSID";
+   const char* WIFI_PASS = "YourWiFi_Password";
+   const float OM_LAT = -6.914744f; // Change to your latitude
+   const float OM_LON = 107.609810f; // Change to your longitude
+   ```
 4.  **Upload to ESP8266:**
     * Go to `Tools > Board` and select your specific ESP8266 board (e.g., "NodeMCU 1.0 (ESP-12E Module)").
     * Connect your board and select the correct COM port.
@@ -100,8 +107,3 @@ The BSEC library provides an IAQ value on a scale from 0 to 500:
 * **301+:** Severely Polluted
 
 The device displays this scale as an "AQS" (Air Quality Status) string for easy interpretation. The `Acc` (Accuracy) value indicates the BSEC algorithm's confidence level (0=stabilizing, 1=low, 2=medium, 3=high). High accuracy is typically achieved after the device runs for a while.
-
-### Serial Monitor Commands
-Connect to the device using the Arduino Serial Monitor at a baud rate of **115200**.
-* `getbaseline`: Prints the current gas resistance baseline value and its readiness status.
-* `resetbaseline`: Resets the stored gas baseline, forcing the device to start a new calibration cycle. Useful when moving the device to a completely new long-term environment.
