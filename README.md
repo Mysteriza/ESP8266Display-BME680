@@ -1,109 +1,117 @@
 # High-Precision ESP8266 BME680 Environmental Monitor
 
-A high-precision, portable environmental monitor using an ESP8266, a Bosch BME680 sensor, and an integrated OLED display. This project leverages the official **Bosch BSEC (Bosch Sensortec Environmental Cluster) software library** to provide accurate Indoor Air Quality (IAQ) readings, alongside temperature, humidity, pressure, and altitude.
-
-The device is designed for continuous operation with robust error handling, intelligent baseline management, and an **always-on OLED display** that switches between screens every few seconds. It also supports periodic fetching of QNH (sea-level pressure) data from the internet to enhance altitude accuracy.
+A portable, high-precision environmental monitor built with **ESP8266 + BME680 + OLED**, leveraging the **Bosch BSEC (Bosch Sensortec Environmental Cluster)** library for stable **Indoor Air Quality (IAQ)** readings, as well as temperature, humidity, pressure, and altitude.  
+The latest firmware introduces **barometric calibration via Serial**, allowing you to set **QNH** (sea-level pressure) directly or **ALTREF** (known reference altitude) for location- and time-accurate altitude measurement.  
+The QNH value is **stored persistently in EEPROM** and remains active across power cycles.
 
 [![Last Updated](https://img.shields.io/github/last-commit/mysteriza/ESP8266Display-BME680?label=Last%20Updated)](https://github.com/mysteriza/ESP8266Display-BME680/commits/main)
 
-<img src="https://github.com/user-attachments/assets/dc004bd2-9f50-4d7b-9746-8caaaf38583f" alt="ESP8266 Device Front View" width="400">
-<img src="https://github.com/user-attachments/assets/871008fa-13bc-48c8-884a-2664ee2e2b26" alt="ESP8266 Device Side View" width="400">
-<img src="https://github.com/user-attachments/assets/62e0e651-10e9-4774-bc52-773508a8fb07" alt="ESP8266 Device Side View" width="400">
+<img src="https://github.com/user-attachments/assets/16ce6f7f-89be-46ac-ae11-b34ff67bfa96" alt="ESP8266 Device Front View" width="400">
+
+<img src="https://github.com/user-attachments/assets/261b5c6e-4504-447e-8210-7e87774dcaeb" alt="ESP8266 Device Side View" width="400">
+
+<img src="https://github.com/user-attachments/assets/99518c65-6359-4fd6-8f37-d91e0dde18bd" alt="ESP8266 Device Rear View" width="400">
+
+<img src="https://github.com/user-attachments/assets/62e0e651-10e9-4774-bc52-773508a8fb07" alt="ESP8266 Device Rear View" width="400">
 
 ---
 
 ## Key Features
 
 ### Core Sensing & IAQ
-* **Bosch BSEC Integration:** Utilizes Bosch's proprietary BSEC algorithm for reliable **Indoor Air Quality (IAQ)** index calculation (0–500 scale).
-* **Comprehensive Data:** Measures Temperature, Humidity, Barometric Pressure, Gas Resistance (VOCs), and calculates Altitude.
-* **Data Persistence:** Saves the BSEC calibration state to EEPROM every **4 hours**, but only when the IAQ accuracy level is high (`iaqAccuracy==3`). This minimizes flash wear and ensures stable calibration across power cycles.
+- **Bosch BSEC Integration:** Provides an IAQ index (0–500) with accuracy levels (`Acc 0–3`).
+- **Comprehensive Data:** Measures temperature, humidity, **pressure** (hPa), **gas/VOC** (kΩ), and computes **altitude** (m).
+- **Persistent Calibration:** Saves BSEC state to EEPROM every **4 hours** (only when `iaqAccuracy==3`) to minimize flash wear and preserve calibration across reboots.
 
 ### Advanced Data Processing
-* **Variance-Aware IAQ Smoothing:** Implements an adaptive smoothing algorithm on the Static IAQ value, providing a more stable and human-readable output.
-* **Self-Adapting Gas Baseline:** Automatically adapts over time for long-term environmental stability.
-* **Transport-Aware Logic:** Freezes baseline calibration when rapid environmental changes are detected (e.g., device movement).
-* **Altitude Filtering:** Combines a median filter with an EMA for smooth and reliable altitude readings.
+- **Variance-Aware IAQ Smoothing:** Adaptive smoothing for static IAQ—stable yet responsive.
+- **Self-Adapting Gas Baseline:** Automatically adjusts over time; freezes baseline when rapid environmental changes are detected.
+- **Altitude Filtering:** Median-of-3 → outlier clamp (±18 m) → **EMA** with **0.4 m deadband** for smooth and stable altitude readings.
 
-### Connectivity & Accuracy
-* **Automatic QNH Updates:** Connects to Wi-Fi every **1 hour** to fetch the current sea-level pressure (QNH) from the Open-Meteo API.  
-* **Scientific Altitude Formula:** Accounts for temperature and humidity for improved altitude accuracy.
+### Calibration & Accuracy
+- **Serial-Based Calibration (No Wi-Fi Needed):**
+  - `QNH=<hPa>` → set local QNH, store to **EEPROM**, persist across reboots.
+  - `ALTREF=<m>` → compute QNH from known **altitude reference**, save and apply automatically.
+  - `QNH?`, `ALT?`, `PRESS?` → quick inspection commands.
+- **Automatic Filter Reset:** Setting QNH/ALTREF resets altitude smoothing for instant convergence.
+- **Precision Rule:** ±**1 hPa** ≈ ±**8–9 m** at mid-altitudes.  
+  Recalibrate whenever you change location or weather conditions vary.
 
 ### Display & Power
-* **Always-On Display (AOD):** OLED display remains active continuously, cycling through two screens:
-  * **Screen 1 (5s):** Temperature, Humidity, Pressure, Altitude.  
-  * **Screen 2 (5s):** Gas Resistance, Static IAQ, IAQ Accuracy, and Air Quality Status (AQS).  
-* **Incremental Refresh:** Screen only updates when values change beyond thresholds, reducing flicker and improving efficiency.
-* **Overheat Protection:**  
-  * If temperature ≥ **45°C**, device enters "HOT HOLD" mode.  
-  * OLED shows a warning with a thermometer icon and the text **Overheat**, which shifts position every 60s to prevent burn-in.  
-  * Sensor reads less frequently (every 60s) until the temperature drops below **41°C**, at which point normal operation resumes.
+- **Automatic OLED Rotation:** Three screens cycle every 5 seconds with change-detection refresh:
+  - **Screen 1:** Temperature, Humidity  
+  - **Screen 2:** Pressure, Altitude  
+  - **Screen 3:** Gas (kΩ), Static IAQ, Accuracy, AQS (Air Quality Status)  
+- **Overheat Protection:**  
+  - Enters **HOT HOLD** mode at ≥45 °C with a moving “Overheat” warning.  
+  - Resumes normal operation when ≤41 °C.
 
 ### Robustness
-* **Error Recovery:** Auto-retry mechanism for BSEC initialization with exponential backoff.
-* **Watchdog Handling:** Automatically restarts if stalled.
-* **Offline Operation:** Continues to work without Wi-Fi, using last known QNH or default fallback.
+- **BSEC Auto-Retry:** Exponential backoff recovery if initialization fails.  
+- **Offline-First Operation:** Works fully offline using the last saved QNH.  
 
 ---
 
 ## Hardware Components
-* **ESP8266 Board with Integrated OLED (0.96" SSD1306).**
-* **Bosch BME680 Sensor** (I2C).
-* **TP4056** for LiPo battery charging and management.
-* **LiPo Battery** (e.g., 1500–2100 mAh).
-* **Power Switch** for on/off control.
-* **Custom PCB & Enclosure** for portability.
+- **ESP8266 Dev Board** + **0.96" SSD1306 OLED (I2C)**  
+- **Bosch BME680 Sensor** (I2C)  
+- **LiPo + TP4056** (optional, for portable setups)  
+- Power switch, custom PCB/enclosure (optional)
+
+### Pin Configuration
+| Function | Pin / Address |
+|-----------|----------------|
+| I2C SDA | `GPIO 14` |
+| I2C SCL | `GPIO 12` |
+| OLED Address | `0x3C` |
+| BME680 Address | `0x76` |
 
 ---
 
-## Pin Configuration
-* **I2C SDA (Data):** `GPIO 14`  
-* **I2C SCL (Clock):** `GPIO 12`  
-* **OLED I2C Address:** `0x3C`  
-* **BME680 I2C Address:** `0x76`  
+## Usage in the Field
+
+### 🔹 Calibration via QNH (when local QNH data is available)
+1. Connect your Android phone to the device via **USB-C OTG + data cable**.  
+2. Open **Serial USB Terminal** (or any compatible terminal app).  
+3. Set baud rate to **115200**, newline to **CR+LF**.  
+4. Type:
+   - ```QNH=1013.25``` (Adjust this to the latest QNH in your location. Please check weather apps such as [Breezy Weather](https://github.com/breezy-weather/breezy-weather) and similar apps to see the atmospheric pressure in your area)
+
+The device stores QNH in EEPROM and immediately recalculates altitude.
 
 ---
 
-## Software Requirements
-* Arduino IDE  
-* ESP8266 Board Package for Arduino IDE  
-* Libraries:  
-  * `Wire.h` (Built-in)  
-  * `EEPROM.h` (Built-in)  
-  * `Adafruit GFX Library`  
-  * `Adafruit SSD1306`  
-  * `Bosch BSEC Software Library`  
+### 🔹 Calibration via ALTREF (when you know the exact elevation)
+1. Stand at a location with a verified elevation (e.g., summit, basecamp, map marker).  
+2. Type:
+```ALTREF=709``` (Adjust this according to the altitude of your location)
+
+The device computes QNH from the current pressure and saves it permanently.  
+Verify with the command below to see the current altitude:
+```ALT?```
 
 ---
 
-## Installation & Setup
-1. **Install Arduino IDE & ESP8266 Core:**  
-   Add `http://arduino.esp8266.com/stable/package_esp8266com_index.json` to Board Manager URLs.  
-2. **Install Required Libraries** via Library Manager:  
-   * "Adafruit GFX Library"  
-   * "Adafruit SSD1306"  
-   * "BSEC Software Library"  
-3. **Configure the Sketch:**  
-   ```cpp
-   const char* WIFI_SSID = "YourWiFi_SSID";
-   const char* WIFI_PASS = "YourWiFi_Password";
-   const float OM_LAT = -6.914744f; // Change to your latitude
-   const float OM_LON = 107.609810f; // Change to your longitude
-   ```
-4.  **Upload to ESP8266:**
-    * Go to `Tools > Board` and select your specific ESP8266 board (e.g., "NodeMCU 1.0 (ESP-12E Module)").
-    * Connect your board and select the correct COM port.
-    * Click "Upload".
+### 🔹 Hiking / Trekking Scenario
+- At **basecamp**, perform one calibration (QNH **or** ALTREF).  
+- Recalibrate if the weather changes significantly. 
 
-## How It Works
+---
 
-### IAQ (Indoor Air Quality) Index
-The BSEC library provides an IAQ value on a scale from 0 to 500:
-* **0 - 50:** Excellent
-* **51 - 100:** Good
-* **101 - 150:** Lightly Polluted
-* **151 - 200:** Moderately Polluted
-* **201 - 300:** Heavily Polluted
-* **301+:** Severely Polluted
+## Serial Command Reference
 
-The device displays this scale as an "AQS" (Air Quality Status) string for easy interpretation. The `Acc` (Accuracy) value indicates the BSEC algorithm's confidence level (0=stabilizing, 1=low, 2=medium, 3=high). High accuracy is typically achieved after the device runs for a while.
+| Command | Function | Example Response |
+|----------|-----------|------------------|
+| `QNH=1012.8` | Set QNH (hPa), save to EEPROM, reset altitude filter | `OK QNH=1012.80 hPa` |
+| `QNH?` | Show current QNH | `QNH=1012.80 hPa` |
+| `ALTREF=709` | Compute QNH from 709 m reference and save | `OK QNH from ALTREF -> 1014.32 hPa` |
+| `ALT?` | Show current altitude (m) | `ALT=708.9 m` |
+| `PRESS?` | Show current pressure (hPa) | `P=933.10 hPa` |
+| `HELP` | List all available commands | `CMD: QNH=... | QNH? | ALT? | PRESS? | ALTREF=...` |
+
+---
+
+## Accuracy Notes
+- **Formula:** Based on the standard barometric equation. Real-world temperature deviations may cause small altitude offsets.  
+- **Sensor Tolerance:** BME680 pressure bias ≈ ±1 hPa → ±8–9 m error.  
+- **Weather Impact:** QNH drifts naturally with weather; recalibrate as needed during extended outdoor sessions.  
