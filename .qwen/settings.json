@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(copy *)",
+      "Bash(arduino-cli *)",
+      "Bash(select-object *)"
+    ]
+  },
+  "$version": 3
+}
