@@ -39,6 +39,7 @@
 #define OLED_DATA_SCREEN_1_DURATION 5000UL // Temp/Humidity screen duration
 #define OLED_DATA_SCREEN_2_DURATION 5000UL // Pressure/Altitude screen duration
 #define OLED_DATA_SCREEN_3_DURATION 5000UL // IAQ/Gas screen duration
+#define OLED_DATA_SCREEN_4_DURATION 5000UL // Uptime screen duration
 
 // Deep Sleep Configuration (power optimization)
 #define DEEP_SLEEP_DURATION_US 30000000UL // 30 seconds between readings
@@ -136,6 +137,7 @@ enum OledDisplayState
   OLED_STATE_DATA_SCREEN_1, ///< Temperature & Humidity
   OLED_STATE_DATA_SCREEN_2, ///< Pressure & Altitude
   OLED_STATE_DATA_SCREEN_3, ///< Gas & IAQ
+  OLED_STATE_DATA_SCREEN_4, ///< Uptime
   OLED_STATE_OFF            ///< Display off (power saving)
 };
 
@@ -217,6 +219,7 @@ float prev_T = NAN, prev_H = NAN, prev_P = NAN, prev_Alt = NAN;
 float prev_G = NAN, prev_IAQ = NAN;
 uint8_t prev_Acc = 255;
 const char *prev_AQS = "";
+unsigned long prevUptimeSec = 0;
 OledDisplayState lastDrawnState = OLED_STATE_ERROR_SCREEN;
 
 // Thermal protection
@@ -550,6 +553,44 @@ void displayScreen3_GasIAQ()
 }
 
 /**
+ * @brief Display Screen 4: System Uptime (HH:MM:SS)
+ */
+void displayScreen4_Uptime()
+{
+  const GFXfont *fontHeader = &FreeSans9pt7b;
+  const GFXfont *fontData = &FreeSans12pt7b;
+  int16_t x1, y1;
+  uint16_t w1, h1;
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  // Header
+  display.setFont(fontHeader);
+  display.getTextBounds(F("Uptime"), 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 12);
+  display.print(F("Uptime"));
+  display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
+
+  // Calculate uptime
+  unsigned long nowMs = millis();
+  unsigned long elapsed = (nowMs >= bootMs) ? (nowMs - bootMs) : nowMs;
+  unsigned long totalSec = elapsed / 1000;
+  unsigned long h = totalSec / 3600;
+  unsigned long m = (totalSec % 3600) / 60;
+  unsigned long s = totalSec % 60;
+
+  // Display formatted time
+  display.setFont(fontData);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%02lu:%02lu:%02lu", h, m, s);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 42);
+  display.print(oledBuffer);
+
+  display.display();
+}
+
+/**
  * @brief Display error screen when sensor is not available
  */
 void displayErrorScreen()
@@ -647,8 +688,27 @@ void stampScreen3()
 }
 
 /**
+ * @brief Check if Screen 4 needs redraw (uptime change)
+ */
+bool shouldRedrawScreen4()
+{
+  if (currentOledScreenState != lastDrawnState)
+    return true;
+  unsigned long nowSec = millis() / 1000;
+  return nowSec != prevUptimeSec;
+}
+
+/**
+ * @brief Stamp current uptime second as "last drawn" for Screen 4
+ */
+void stampScreen4()
+{
+  prevUptimeSec = millis() / 1000;
+  lastDrawnState = OLED_STATE_DATA_SCREEN_4;
+}
+
+/**
  * @brief Update OLED display content based on current state
- * @details Continuous display mode - screens cycle without turning off
  */
 void updateOLEDDisplayContent()
 {
@@ -707,8 +767,7 @@ void updateOLEDDisplayContent()
   case OLED_STATE_DATA_SCREEN_3:
     if (elapsed >= OLED_DATA_SCREEN_3_DURATION)
     {
-      // Loop back to Screen 1 (continuous monitoring)
-      currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_4;
       oledScreenStateChangeMillis = now;
       lastDrawnState = OLED_STATE_ERROR_SCREEN;
     }
@@ -716,6 +775,21 @@ void updateOLEDDisplayContent()
     {
       displayScreen3_GasIAQ();
       stampScreen3();
+    }
+    break;
+
+  case OLED_STATE_DATA_SCREEN_4:
+    if (elapsed >= OLED_DATA_SCREEN_4_DURATION)
+    {
+      // Loop back to Screen 1 (continuous monitoring)
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
+      oledScreenStateChangeMillis = now;
+      lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    }
+    else if (shouldRedrawScreen4())
+    {
+      displayScreen4_Uptime();
+      stampScreen4();
     }
     break;
 
