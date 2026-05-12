@@ -1,0 +1,351 @@
+#include "oled.h"
+#include "../globals.h"
+#include "../utils.h"
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
+
+void initOLED()
+{
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  display.clearDisplay();
+  display.setTextWrap(false);
+  display.display();
+  oledSetContrast(CONTRAST_NORMAL);
+}
+
+void oledSetContrast(uint8_t v)
+{
+  display.ssd1306_command(SSD1306_SETCONTRAST);
+  display.ssd1306_command(v);
+}
+
+static void drawThermometerIcon(int16_t x, int16_t y)
+{
+  display.fillCircle(x + 6, y + 18, 6, SSD1306_WHITE);
+  display.fillRect(x + 5, y, 3, 18, SSD1306_WHITE);
+}
+
+static void getOverheatPos(uint8_t idx, int16_t &x, int16_t &y)
+{
+  static const int8_t pos[5][2] = {
+      {10, 10},
+      {32, 6},
+      {20, 28},
+      {48, 18},
+      {8, 36}};
+  x = pos[idx % 5][0];
+  y = pos[idx % 5][1];
+}
+
+void displayOverheat()
+{
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setFont(&FreeSans12pt7b);
+
+  int16_t x, y;
+  getOverheatPos(overheatPosIndex, x, y);
+  drawThermometerIcon(x, y);
+
+  int16_t bx, by;
+  uint16_t bw, bh;
+  display.getTextBounds(F("Overheat"), 0, 0, &bx, &by, &bw, &bh);
+
+  int16_t tx = x + 18, ty = y + 22;
+  if (tx + (int)bw > SCREEN_W)
+    tx = SCREEN_W - bw;
+  if (ty < 18)
+    ty = 18;
+  if (ty > 56)
+    ty = 56;
+
+  display.setCursor(tx, ty);
+  display.print(F("Overheat"));
+  display.display();
+
+  overheatPosIndex = (overheatPosIndex + 1) % 5;
+}
+
+void displayScreen1_TempHumid()
+{
+  int16_t x1, y1;
+  uint16_t w1, h1;
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setFont(&FreeSans9pt7b);
+  display.getTextBounds(F("Temp & Humid"), 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 12);
+  display.print(F("Temp & Humid"));
+  display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
+
+  display.setFont(&FreeSans12pt7b);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f C", gTemp);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 38);
+  display.print(oledBuffer);
+  display.drawCircle(((SCREEN_W - w1) / 2) + w1 - 15, 25, 2, SSD1306_WHITE);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f %%", gHum);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 62);
+  display.print(oledBuffer);
+
+  display.display();
+}
+
+void displayScreen2_PressureAlt()
+{
+  int16_t x1, y1;
+  uint16_t w1, h1;
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setFont(&FreeSans9pt7b);
+  display.getTextBounds(F("Press & Altitude"), 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 12);
+  display.print(F("Press & Altitude"));
+  display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
+
+  display.setFont(&FreeSans12pt7b);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f hPa", gPress);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 38);
+  display.print(oledBuffer);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl", (int)lroundf(gAlt));
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 62);
+  display.print(oledBuffer);
+
+  display.display();
+}
+
+void displayScreen3_GasIAQ()
+{
+  display.setTextColor(SSD1306_WHITE);
+  display.clearDisplay();
+  display.setFont(&FreeSans9pt7b);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "G: %.1f kOhm", gGasEMA_kOhm);
+  display.setCursor(0, 14);
+  display.print(oledBuffer);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "IAQ: %.1f", gIAQstaticDisp);
+  display.setCursor(0, 30);
+  display.print(oledBuffer);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "Acc: %u", gIAQaccDisp);
+  display.setCursor(0, 46);
+  display.print(oledBuffer);
+
+  snprintf(oledBuffer, sizeof(oledBuffer), "AQS: %s", getIaqCategory(gIAQstaticDisp));
+  display.setCursor(0, 62);
+  display.print(oledBuffer);
+
+  display.display();
+}
+
+void displayScreen4_Uptime()
+{
+  int16_t x1, y1;
+  uint16_t w1, h1;
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setFont(&FreeSans9pt7b);
+  display.getTextBounds(F("Uptime"), 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 12);
+  display.print(F("Uptime"));
+  display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
+
+  unsigned long nowMs = millis();
+  unsigned long elapsed = (nowMs >= bootMs) ? (nowMs - bootMs) : nowMs;
+  unsigned long totalSec = elapsed / 1000;
+  unsigned long h = totalSec / 3600;
+  unsigned long m = (totalSec % 3600) / 60;
+  unsigned long s = totalSec % 60;
+
+  display.setFont(&FreeSans12pt7b);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%02lu:%02lu:%02lu", h, m, s);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 42);
+  display.print(oledBuffer);
+
+  display.display();
+}
+
+void displayErrorScreen()
+{
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setFont(&FreeSans9pt7b);
+  display.setCursor(0, 20);
+  display.print(F("Sensor Error"));
+  display.setFont();
+  display.setCursor(0, 40);
+  display.print(F("Retrying..."));
+  display.display();
+}
+
+static bool shouldRedrawScreen1()
+{
+  if (currentOledScreenState != lastDrawnState)
+    return true;
+  if (isnan(prev_T) || isnan(prev_H))
+    return true;
+  return hasChanged(gTemp, prev_T, TH_T) || hasChanged(gHum, prev_H, TH_H);
+}
+
+static bool shouldRedrawScreen2()
+{
+  if (currentOledScreenState != lastDrawnState)
+    return true;
+  if (isnan(prev_P) || isnan(prev_Alt))
+    return true;
+  return hasChanged(gPress, prev_P, TH_P) || hasChanged(gAlt, prev_Alt, TH_ALT);
+}
+
+static bool shouldRedrawScreen3()
+{
+  if (currentOledScreenState != lastDrawnState)
+    return true;
+  if (isnan(prev_G) || isnan(prev_IAQ))
+    return true;
+  return hasChanged(gGasEMA_kOhm, prev_G, TH_G) ||
+         hasChanged(gIAQstaticDisp, prev_IAQ, TH_IAQ) ||
+         gIAQaccDisp != prev_Acc ||
+         prev_AQS != getIaqCategory(gIAQstaticDisp);
+}
+
+static bool shouldRedrawScreen4()
+{
+  if (currentOledScreenState != lastDrawnState)
+    return true;
+  unsigned long nowSec = millis() / 1000;
+  return nowSec != prevUptimeSec;
+}
+
+static void stampScreen1()
+{
+  prev_T = gTemp;
+  prev_H = gHum;
+  lastDrawnState = OLED_STATE_DATA_SCREEN_1;
+}
+
+static void stampScreen2()
+{
+  prev_P = gPress;
+  prev_Alt = gAlt;
+  lastDrawnState = OLED_STATE_DATA_SCREEN_2;
+}
+
+static void stampScreen3()
+{
+  prev_G = gGasEMA_kOhm;
+  prev_IAQ = gIAQstaticDisp;
+  prev_Acc = gIAQaccDisp;
+  prev_AQS = getIaqCategory(gIAQstaticDisp);
+  lastDrawnState = OLED_STATE_DATA_SCREEN_3;
+}
+
+static void stampScreen4()
+{
+  prevUptimeSec = millis() / 1000;
+  lastDrawnState = OLED_STATE_DATA_SCREEN_4;
+}
+
+void updateOLEDDisplayContent()
+{
+  if (currentAppMode == MODE_BME_ERROR)
+  {
+    if (!errorScreenDrawn)
+    {
+      displayErrorScreen();
+      errorScreenDrawn = true;
+    }
+    return;
+  }
+
+  if (thermal == THERM_HOT_HOLD)
+  {
+    if (millis() >= nextSafetyProcessMs)
+    {
+      displayOverheat();
+      nextSafetyProcessMs = millis() + SAFETY_PERIOD_MS;
+    }
+    return;
+  }
+
+  unsigned long now = millis();
+  unsigned long elapsed = now - oledScreenStateChangeMillis;
+
+  switch (currentOledScreenState)
+  {
+  case OLED_STATE_DATA_SCREEN_1:
+    if (elapsed >= OLED_DATA_SCREEN_1_DURATION)
+    {
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_2;
+      oledScreenStateChangeMillis = now;
+      lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    }
+    else if (shouldRedrawScreen1())
+    {
+      displayScreen1_TempHumid();
+      stampScreen1();
+    }
+    break;
+
+  case OLED_STATE_DATA_SCREEN_2:
+    if (elapsed >= OLED_DATA_SCREEN_2_DURATION)
+    {
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_3;
+      oledScreenStateChangeMillis = now;
+      lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    }
+    else if (shouldRedrawScreen2())
+    {
+      displayScreen2_PressureAlt();
+      stampScreen2();
+    }
+    break;
+
+  case OLED_STATE_DATA_SCREEN_3:
+    if (elapsed >= OLED_DATA_SCREEN_3_DURATION)
+    {
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_4;
+      oledScreenStateChangeMillis = now;
+      lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    }
+    else if (shouldRedrawScreen3())
+    {
+      displayScreen3_GasIAQ();
+      stampScreen3();
+    }
+    break;
+
+  case OLED_STATE_DATA_SCREEN_4:
+    if (elapsed >= OLED_DATA_SCREEN_4_DURATION)
+    {
+      currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
+      oledScreenStateChangeMillis = now;
+      lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    }
+    else if (shouldRedrawScreen4())
+    {
+      displayScreen4_Uptime();
+      stampScreen4();
+    }
+    break;
+
+  default:
+    currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
+    oledScreenStateChangeMillis = now;
+    lastDrawnState = OLED_STATE_ERROR_SCREEN;
+    break;
+  }
+}

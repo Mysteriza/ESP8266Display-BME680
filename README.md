@@ -30,10 +30,11 @@ The device is designed for **continuous operation** with robust error handling, 
 
 ### Display & Power
 
-- **Continuous Display Mode:** OLED display remains active 24/7, cycling through three data screens:
+- **Continuous Display Mode:** OLED display remains active 24/7, cycling through four data screens:
   - **Screen 1 (5s):** Temperature & Humidity
   - **Screen 2 (5s):** Pressure & Altitude
   - **Screen 3 (5s):** Gas Resistance, IAQ, Accuracy, Air Quality Status
+  - **Screen 4 (5s):** System Uptime (HH:MM:SS)
 - **Incremental Refresh:** Screen only updates when values change beyond thresholds, reducing flicker and CPU usage.
 - **Battery Optimized:** Sensor reads every 30 seconds with intelligent power management for 24hr+ battery life.
 
@@ -128,11 +129,12 @@ See **[FIX_IRAM_OVERFLOW_GUIDE.md](FIX_IRAM_OVERFLOW_GUIDE.md)** for:
 3. **Configure the Sketch:**
 
    ```cpp
-   // Optional: Edit configuration constants at top of sketch
+   // Edit configuration constants in config.h
    #define SENSOR_READ_INTERVAL_MS 30000UL    // Sensor reading interval
    #define OLED_DATA_SCREEN_1_DURATION 5000UL // Screen 1 duration
    #define OLED_DATA_SCREEN_2_DURATION 5000UL // Screen 2 duration
    #define OLED_DATA_SCREEN_3_DURATION 5000UL // Screen 3 duration
+   #define OLED_DATA_SCREEN_4_DURATION 5000UL // Screen 4 (Uptime) duration
    ```
 
 4. **Upload to ESP8266:**
@@ -213,12 +215,13 @@ Connect via serial monitor (115200 baud) and use:
 
 ### Display Screens
 
-The OLED continuously cycles through 3 screens:
+The OLED continuously cycles through 4 screens:
 
 1. **Screen 1 (5s):** Temperature & Humidity
 2. **Screen 2 (5s):** Pressure & Altitude
 3. **Screen 3 (5s):** Gas Resistance, IAQ, Accuracy, AQS
-4. **Loops back to Screen 1** → Continuous monitoring mode
+4. **Screen 4 (5s):** System Uptime (HH:MM:SS since boot)
+5. **Loops back to Screen 1** → Continuous monitoring mode
 
 ### IAQ Scale
 
@@ -247,7 +250,7 @@ The `Acc` value (0-3) shows BSEC algorithm confidence:
 ### Display Behavior
 
 - **Continuous Mode:** Display never turns off
-- **3 screens cycle** every 5 seconds each (15s total cycle)
+- **4 screens cycle** every 5 seconds each (20s total cycle)
 - **Conditional redraw:** Only updates when values change beyond thresholds (reduces flicker)
 
 ### Battery Life Estimates
@@ -360,39 +363,43 @@ Compilation error: exit status 1
 ## Code Structure
 
 ```
-ESP8266Display-BME680.ino
-├── SECTION 1:  Includes
-├── SECTION 2:  Hardware Configuration
-├── SECTION 3:  Application Configuration
-├── SECTION 4:  Algorithm Parameters
-├── SECTION 5:  EEPROM Memory Map
-├── SECTION 6:  Type Definitions
-├── SECTION 7:  Global State Variables
-├── SECTION 8:  Utility Functions
-├── SECTION 9:  OLED Display Functions
-├── SECTION 10: Display State Management
-├── SECTION 11: EEPROM Storage Management
-├── SECTION 12: BME680 & BSEC Sensor Functions
-├── SECTION 13: Thermal Protection
-├── SECTION 14: Error Recovery & Retry
-├── SECTION 15: Serial Command Interface
-└── SECTION 16: Setup & Main Loop
+ESP8266Display-BME680.ino   (setup + main loop)
+└── src/
+    ├── config.h             (all #defines, memory map)
+    ├── types.h              (enumerations)
+    ├── globals.h / .cpp     (global state variables)
+    ├── utils.h / .cpp       (utility functions: baro, IAQ categories)
+    ├── display/
+    │   └── oled.h / .cpp    (OLED display + state machine)
+    ├── sensing/
+    │   ├── sensor.h / .cpp  (BSEC/BME680, thermal, error recovery)
+    │   └── storage.h / .cpp (EEPROM persistence)
+    └── communication/
+        └── serial_cmd.h / .cpp (serial parser, char buffer)
 ```
 
 ---
 
 ## Project Files
 
-| File                               | Description                               |
-| ---------------------------------- | ----------------------------------------- |
-| `ESP8266Display-BME680.ino`        | Main Arduino sketch (v2.0)                |
-| `ESP8266Display-BME680.ino.backup` | Original v1.x backup                      |
-| `platform.txt`                     | Fixed platform configuration for IRAM fix |
-| `FIX_IRAM_OVERFLOW_GUIDE.md`       | Complete IRAM overflow fix guide          |
-| `Fix RAM ESP8266.txt`              | Original fix notes                        |
-| `README.md`                        | This file - project documentation         |
-| `CHANGELOG.md`                     | Version history and changes               |
-| `MIGRATION.md`                     | Upgrade guide from v1.x to v2.0           |
+| File                                   | Description                                       |
+| -------------------------------------- | ------------------------------------------------- |
+| `ESP8266Display-BME680.ino`            | Main entry point (setup + loop)                   |
+| `src/config.h`                         | Hardware & algorithm configuration constants      |
+| `src/types.h`                          | Enum type definitions                             |
+| `src/globals.h` / `src/globals.cpp`    | Global state variables                            |
+| `src/utils.h` / `src/utils.cpp`        | Utility functions (barometric, math, categories)  |
+| `src/display/oled.h` / `src/display/oled.cpp` | OLED display & screen state machine        |
+| `src/sensing/sensor.h` / `src/sensing/sensor.cpp` | BSEC/BME680 driver, filtering, thermal, retry |
+| `src/sensing/storage.h` / `src/sensing/storage.cpp` | EEPROM persistence layer                  |
+| `src/communication/serial_cmd.h` / `src/communication/serial_cmd.cpp` | Serial parser (char buffer) |
+| `ESP8266Display-BME680.ino.backup`     | Original v1.x backup                              |
+| `platform.txt`                     | Fixed platform configuration for IRAM fix       |
+| `FIX_IRAM_OVERFLOW_GUIDE.md`       | Complete IRAM overflow fix guide                |
+| `Fix RAM ESP8266.txt`              | Original fix notes                              |
+| `README.md`                        | This file - project documentation               |
+| `CHANGELOG.md`                     | Version history and changes                     |
+| `MIGRATION.md`                     | Upgrade guide from v1.x to v2.0                 |
 
 ---
 
@@ -409,44 +416,4 @@ ESP8266Display-BME680.ino
 - **Boot Time:** ~2 seconds to first reading
 - **BSEC Stabilization:** 5-30 minutes
 - **Sensor Read Cycle:** 30 seconds
-- **Display Cycle:** 15 seconds (3 screens, continuous loop)
-
----
-
-## Contributing
-
-1. Fork repository
-2. Create feature branch
-3. Follow existing code structure and documentation style
-4. Test with actual hardware
-5. Submit PR with detailed description
-
----
-
-## License
-
-This project is provided as-is for educational and personal use.
-
-BSEC library is subject to Bosch Software License Agreement.
-
----
-
-## Acknowledgments
-
-- **Bosch Sensortec** for BSEC library
-- **Adafruit** for display libraries
-- **ESP8266 community** for excellent core support
-
----
-
-## Support
-
-- **Issues:** Open GitHub issue
-- **Questions:** Use GitHub Discussions
-- **Documentation:** See comments in source code and `FIX_IRAM_OVERFLOW_GUIDE.md`
-
----
-
-**Version:** 2.0.0  
-**Last Updated:** 2026-04-11  
-**Author:** rifqi
+- **Display Cycle:** 20 seconds (4 screens, continuous loop)
