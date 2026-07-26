@@ -10,18 +10,20 @@ PowerState currentPowerState = POWER_ACTIVE;
 OledDisplayState currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
 ThermalState thermal = THERM_NORMAL;
 
-float gTemp = 0.0f;
-float gHum = 0.0f;
-float gPress = 0.0f;
-float gAlt = 0.0f;
-float gGas_kOhm = 0.0f;
-float gGasEMA_kOhm = NAN;
-float gIAQ = NAN;
-float gIAQstatic = NAN;
-float gIAQstaticDisp = NAN;
-uint8_t gIAQacc = 0;
-uint8_t gIAQaccPrev = 0;
-uint8_t gIAQaccDisp = 0;
+EnvironmentData envData = {
+  0.0f, // temperature
+  0.0f, // humidity
+  0.0f, // pressure
+  0.0f, // altitude
+  0.0f, // gasResistance
+  NAN,  // gasResistanceEMA
+  NAN,  // iaq
+  NAN,  // iaqStatic
+  NAN,  // iaqStaticDisp
+  0,    // iaqAccuracy
+  0,    // iaqAccuracyPrev
+  0     // iaqAccuracyDisp
+};
 
 float seaLevelPressure_hPa_current = 1012.50f;
 float gasBaseline_kOhm = NAN;

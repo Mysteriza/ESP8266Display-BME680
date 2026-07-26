@@ -73,7 +73,7 @@ void loop()
     {
       if (millis() >= nextSafetyProcessMs)
       {
-        if (gTemp <= HOT_EXIT_C)
+        if (envData.temperature <= HOT_EXIT_C)
         {
           exitHotHold();
         }

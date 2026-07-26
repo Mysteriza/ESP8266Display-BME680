@@ -33,8 +33,8 @@ bool initBSEC()
 
   loadBsecState();
   lastBsecSaveMs = millis();
-  gIAQaccPrev = iaqSensor.iaqAccuracy;
-  gIAQaccDisp = gIAQaccPrev;
+  envData.iaqAccuracyPrev = iaqSensor.iaqAccuracy;
+  envData.iaqAccuracyDisp = envData.iaqAccuracyPrev;
 
   bsecActive = true;
   bsecHasData = false;
@@ -66,7 +66,7 @@ void calQNHFromAltRef(float href_m)
 {
   if (!(href_m > -1000.0f && href_m < 10000.0f))
     return;
-  float q = qnhFromRef(gPress, href_m);
+  float q = qnhFromRef(envData.pressure, href_m);
   if (isfinite(q) && q >= 870.0f && q <= 1100.0f)
   {
     setQNH(q);
@@ -80,16 +80,16 @@ void bsecLoopTick()
   if (!iaqSensor.run())
     return;
 
-  gIAQ = iaqSensor.iaq;
-  gIAQstatic = iaqSensor.staticIaq;
-  gIAQacc = iaqSensor.iaqAccuracy;
-  gTemp = iaqSensor.temperature;
-  gHum = iaqSensor.humidity;
-  gPress = iaqSensor.pressure / 100.0f;
-  gGas_kOhm = iaqSensor.gasResistance / 1000.0f;
+  envData.iaq = iaqSensor.iaq;
+  envData.iaqStatic = iaqSensor.staticIaq;
+  envData.iaqAccuracy = iaqSensor.iaqAccuracy;
+  envData.temperature = iaqSensor.temperature;
+  envData.humidity = iaqSensor.humidity;
+  envData.pressure = iaqSensor.pressure / 100.0f;
+  envData.gasResistance = iaqSensor.gasResistance / 1000.0f;
 
   // Altitude calculation with median + EMA filtering
-  float alt_raw = simpleBaroAltitude(gPress, seaLevelPressure_hPa_current);
+  float alt_raw = temperatureCompensatedAltitude(envData.pressure, seaLevelPressure_hPa_current, envData.temperature);
   altRaw3[altIdx] = alt_raw;
   altIdx = (altIdx + 1) % 3;
   if (altCnt < 3)
@@ -113,7 +113,7 @@ void bsecLoopTick()
       gAltSmooth = cand;
     }
   }
-  gAlt = gAltSmooth;
+  envData.altitude = gAltSmooth;
 
   if (!bsecHasData)
     lastDrawnState = OLED_STATE_ERROR_SCREEN;
@@ -121,22 +121,22 @@ void bsecLoopTick()
   lastBsecDataMs = millis();
 
   // Gas resistance EMA filtering
-  if (isnan(gGasEMA_kOhm))
+  if (isnan(envData.gasResistanceEMA))
   {
-    gGasEMA_kOhm = gGas_kOhm;
+    envData.gasResistanceEMA = envData.gasResistance;
   }
   else
   {
-    gGasEMA_kOhm = GAS_EMA_ALPHA * gGas_kOhm + (1.0f - GAS_EMA_ALPHA) * gGasEMA_kOhm;
+    envData.gasResistanceEMA = GAS_EMA_ALPHA * envData.gasResistance + (1.0f - GAS_EMA_ALPHA) * envData.gasResistanceEMA;
   }
 
   // IAQ variance-adaptive smoothing
   if (isnan(iaqMeanEWMA))
   {
-    iaqMeanEWMA = gIAQstatic;
+    iaqMeanEWMA = envData.iaqStatic;
     iaqVarEWMA = 0.0f;
   }
-  float d = gIAQstatic - iaqMeanEWMA;
+  float d = envData.iaqStatic - iaqMeanEWMA;
   iaqMeanEWMA += IAQ_VAR_ALPHA * d;
   iaqVarEWMA = (1.0f - IAQ_VAR_ALPHA) * (iaqVarEWMA + IAQ_VAR_ALPHA * d * d);
   float vol = sqrtf(fmaxf(iaqVarEWMA, 0.0f));
@@ -149,29 +149,29 @@ void bsecLoopTick()
   else
     aVar = 0.10f + (vol - 2.0f) * (0.35f / (25.0f - 2.0f));
 
-  if (gIAQacc >= 3)
+  if (envData.iaqAccuracy >= 3)
     aVar *= 0.6f;
-  if (gIAQacc <= 1)
+  if (envData.iaqAccuracy <= 1)
     aVar = fmaxf(aVar, 0.28f);
   aVar = fminf(fmaxf(aVar, 0.08f), 0.45f);
 
-  if (isnan(gIAQstaticDisp))
+  if (isnan(envData.iaqStaticDisp))
   {
-    gIAQstaticDisp = gIAQstatic;
+    envData.iaqStaticDisp = envData.iaqStatic;
   }
   else
   {
-    gIAQstaticDisp = aVar * gIAQstatic + (1.0f - aVar) * gIAQstaticDisp;
+    envData.iaqStaticDisp = aVar * envData.iaqStatic + (1.0f - aVar) * envData.iaqStaticDisp;
   }
 
   // Periodic BSEC state save
-  if (millis() - lastBsecSaveMs >= BSEC_SAVE_INTERVAL_MS && gIAQacc >= 3)
+  if (millis() - lastBsecSaveMs >= BSEC_SAVE_INTERVAL_MS && envData.iaqAccuracy >= 3)
   {
     saveBsecState();
     lastBsecSaveMs = millis();
   }
 
-  if (gIAQacc > gIAQaccPrev && gIAQacc >= 2)
+  if (envData.iaqAccuracy > envData.iaqAccuracyPrev && envData.iaqAccuracy >= 2)
   {
     if (millis() - lastBsecSaveMs >= BSEC_MIN_SAVE_GAP_MS)
     {
@@ -180,16 +180,16 @@ void bsecLoopTick()
     }
   }
 
-  gIAQaccDisp = (gIAQacc >= 3) ? 3 : (gIAQacc == 2 && gIAQaccDisp == 3 ? 2 : gIAQacc);
-  gIAQaccPrev = gIAQacc;
+  envData.iaqAccuracyDisp = (envData.iaqAccuracy >= 3) ? 3 : (envData.iaqAccuracy == 2 && envData.iaqAccuracyDisp == 3 ? 2 : envData.iaqAccuracy);
+  envData.iaqAccuracyPrev = envData.iaqAccuracy;
 
   // Transport detection
   if (++portDecim >= PORT_DECIM_N)
   {
     portDecim = 0;
-    portBufP[portW] = gPress;
-    portBufH[portW] = gHum;
-    portBufI[portW] = gIAQstatic;
+    portBufP[portW] = envData.pressure;
+    portBufH[portW] = envData.humidity;
+    portBufI[portW] = envData.iaqStatic;
     portW = (portW + 1) % PORT_BUF;
     if (portFill < PORT_BUF)
       portFill++;
@@ -243,9 +243,9 @@ void readBME680SensorData()
   {
     if (isnan(gasBaseline_kOhm))
     {
-      gasBaseline_kOhm = gGasEMA_kOhm;
+      gasBaseline_kOhm = envData.gasResistanceEMA;
     }
-    float dv = gGasEMA_kOhm - gasBaseline_kOhm;
+    float dv = envData.gasResistanceEMA - gasBaseline_kOhm;
     gasBaseline_kOhm += (dv > 0 ? BASELINE_ALPHA_UP : BASELINE_ALPHA_DOWN) * dv;
   }
 
@@ -256,12 +256,12 @@ void readBME680SensorData()
     saveGasBaseline(gasBaseline_kOhm, true);
   }
 
-  if (thermal == THERM_NORMAL && gTemp >= HOT_ENTER_C)
+  if (thermal == THERM_NORMAL && envData.temperature >= HOT_ENTER_C)
   {
     enterHotHold();
     return;
   }
-  if (thermal == THERM_HOT_HOLD && gTemp <= HOT_EXIT_C)
+  if (thermal == THERM_HOT_HOLD && envData.temperature <= HOT_EXIT_C)
   {
     exitHotHold();
   }

@@ -29,11 +29,11 @@ void handleSerialInput()
         }
         else if (strcasecmp(line, "ALT?") == 0)
         {
-          Serial.printf("ALT=%.2f m\r\n", gAlt);
+          Serial.printf("ALT=%.2f m\r\n", envData.altitude);
         }
         else if (strcasecmp(line, "PRESS?") == 0)
         {
-          Serial.printf("P=%.2f hPa\r\n", gPress);
+          Serial.printf("P=%.2f hPa\r\n", envData.pressure);
         }
         else if (strncmp(line, "ALTREF=", 7) == 0)
         {
@@ -45,7 +45,7 @@ void handleSerialInput()
         {
           Serial.printf("Mode:%d Therm:%d BSEC:%s IAQ:%.1f(%u)\r\n",
                         currentAppMode, thermal, bsecActive ? "Y" : "N",
-                        gIAQstaticDisp, gIAQaccDisp);
+                        envData.iaqStaticDisp, envData.iaqAccuracyDisp);
         }
         else if (strcasecmp(line, "HELP") == 0)
         {

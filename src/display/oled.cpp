@@ -82,13 +82,13 @@ void displayScreen1_TempHumid()
   display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
 
   display.setFont(&FreeSans12pt7b);
-  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f C", gTemp);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f C", envData.temperature);
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 38);
   display.print(oledBuffer);
   display.drawCircle(((SCREEN_W - w1) / 2) + w1 - 15, 25, 2, SSD1306_WHITE);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f %%", gHum);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f %%", envData.humidity);
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 62);
   display.print(oledBuffer);
@@ -111,12 +111,12 @@ void displayScreen2_PressureAlt()
   display.drawFastHLine(0, 15, SCREEN_W, SSD1306_WHITE);
 
   display.setFont(&FreeSans12pt7b);
-  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f hPa", gPress);
+  snprintf(oledBuffer, sizeof(oledBuffer), "%.2f hPa", envData.pressure);
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 38);
   display.print(oledBuffer);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl", (int)lroundf(gAlt));
+  snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl", (int)lroundf(envData.altitude));
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 62);
   display.print(oledBuffer);
@@ -130,19 +130,19 @@ void displayScreen3_GasIAQ()
   display.clearDisplay();
   display.setFont(&FreeSans9pt7b);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "G: %.1f kOhm", gGasEMA_kOhm);
+  snprintf(oledBuffer, sizeof(oledBuffer), "G: %.1f kOhm", envData.gasResistanceEMA);
   display.setCursor(0, 14);
   display.print(oledBuffer);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "IAQ: %.1f", gIAQstaticDisp);
+  snprintf(oledBuffer, sizeof(oledBuffer), "IAQ: %.1f", envData.iaqStaticDisp);
   display.setCursor(0, 30);
   display.print(oledBuffer);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "Acc: %u", gIAQaccDisp);
+  snprintf(oledBuffer, sizeof(oledBuffer), "Acc: %u", envData.iaqAccuracyDisp);
   display.setCursor(0, 46);
   display.print(oledBuffer);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "AQS: %s", getIaqCategory(gIAQstaticDisp));
+  snprintf(oledBuffer, sizeof(oledBuffer), "AQS: %s", getIaqCategory(envData.iaqStaticDisp));
   display.setCursor(0, 62);
   display.print(oledBuffer);
 
@@ -198,7 +198,7 @@ static bool shouldRedrawScreen1()
     return true;
   if (isnan(prev_T) || isnan(prev_H))
     return true;
-  return hasChanged(gTemp, prev_T, TH_T) || hasChanged(gHum, prev_H, TH_H);
+  return hasChanged(envData.temperature, prev_T, TH_T) || hasChanged(envData.humidity, prev_H, TH_H);
 }
 
 static bool shouldRedrawScreen2()
@@ -207,7 +207,7 @@ static bool shouldRedrawScreen2()
     return true;
   if (isnan(prev_P) || isnan(prev_Alt))
     return true;
-  return hasChanged(gPress, prev_P, TH_P) || hasChanged(gAlt, prev_Alt, TH_ALT);
+  return hasChanged(envData.pressure, prev_P, TH_P) || hasChanged(envData.altitude, prev_Alt, TH_ALT);
 }
 
 static bool shouldRedrawScreen3()
@@ -216,10 +216,10 @@ static bool shouldRedrawScreen3()
     return true;
   if (isnan(prev_G) || isnan(prev_IAQ))
     return true;
-  return hasChanged(gGasEMA_kOhm, prev_G, TH_G) ||
-         hasChanged(gIAQstaticDisp, prev_IAQ, TH_IAQ) ||
-         gIAQaccDisp != prev_Acc ||
-         prev_AQS != getIaqCategory(gIAQstaticDisp);
+  return hasChanged(envData.gasResistanceEMA, prev_G, TH_G) ||
+         hasChanged(envData.iaqStaticDisp, prev_IAQ, TH_IAQ) ||
+         envData.iaqAccuracyDisp != prev_Acc ||
+         prev_AQS != getIaqCategory(envData.iaqStaticDisp);
 }
 
 static bool shouldRedrawScreen4()
@@ -232,24 +232,24 @@ static bool shouldRedrawScreen4()
 
 static void stampScreen1()
 {
-  prev_T = gTemp;
-  prev_H = gHum;
+  prev_T = envData.temperature;
+  prev_H = envData.humidity;
   lastDrawnState = OLED_STATE_DATA_SCREEN_1;
 }
 
 static void stampScreen2()
 {
-  prev_P = gPress;
-  prev_Alt = gAlt;
+  prev_P = envData.pressure;
+  prev_Alt = envData.altitude;
   lastDrawnState = OLED_STATE_DATA_SCREEN_2;
 }
 
 static void stampScreen3()
 {
-  prev_G = gGasEMA_kOhm;
-  prev_IAQ = gIAQstaticDisp;
-  prev_Acc = gIAQaccDisp;
-  prev_AQS = getIaqCategory(gIAQstaticDisp);
+  prev_G = envData.gasResistanceEMA;
+  prev_IAQ = envData.iaqStaticDisp;
+  prev_Acc = envData.iaqAccuracyDisp;
+  prev_AQS = getIaqCategory(envData.iaqStaticDisp);
   lastDrawnState = OLED_STATE_DATA_SCREEN_3;
 }
 

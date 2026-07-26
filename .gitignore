@@ -1,0 +1,5 @@
+# RTK configs
+.rtk/
+
+# Backup files
+*.backup

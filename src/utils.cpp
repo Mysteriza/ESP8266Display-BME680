@@ -47,6 +47,13 @@ float simpleBaroAltitude(float press_hPa, float qnh_hPa)
   return 44330.0f * (1.0f - powf(press_hPa / qnh_hPa, 0.190294957f));
 }
 
+float temperatureCompensatedAltitude(float press_hPa, float qnh_hPa, float temp_C)
+{
+  if (!(press_hPa > 0 && qnh_hPa > 0))
+    return NAN;
+  return ((powf(qnh_hPa / press_hPa, 1.0f / 5.257f) - 1.0f) * (temp_C + 273.15f)) / 0.0065f;
+}
+
 float qnhFromRef(float press_hPa, float href_m)
 {
   float k = 1.0f - (href_m / 44330.0f);

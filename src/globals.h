@@ -17,18 +17,22 @@ extern PowerState currentPowerState;
 extern OledDisplayState currentOledScreenState;
 extern ThermalState thermal;
 
-extern float gTemp;
-extern float gHum;
-extern float gPress;
-extern float gAlt;
-extern float gGas_kOhm;
-extern float gGasEMA_kOhm;
-extern float gIAQ;
-extern float gIAQstatic;
-extern float gIAQstaticDisp;
-extern uint8_t gIAQacc;
-extern uint8_t gIAQaccPrev;
-extern uint8_t gIAQaccDisp;
+struct EnvironmentData {
+  float temperature;
+  float humidity;
+  float pressure;
+  float altitude;
+  float gasResistance;
+  float gasResistanceEMA;
+  float iaq;
+  float iaqStatic;
+  float iaqStaticDisp;
+  uint8_t iaqAccuracy;
+  uint8_t iaqAccuracyPrev;
+  uint8_t iaqAccuracyDisp;
+};
+
+extern EnvironmentData envData;
 
 extern float seaLevelPressure_hPa_current;
 extern float gasBaseline_kOhm;
