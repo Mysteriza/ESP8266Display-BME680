@@ -162,6 +162,10 @@ See **[FIX_IRAM_OVERFLOW_GUIDE.md](FIX_IRAM_OVERFLOW_GUIDE.md)** for:
 
 ### 🔹 WiFi Provisioning (for hourly auto-QNH)
 
+> **New users:** no credentials are required to build or run this firmware. Without them the device simply works offline (`QNH DEF`). To enable auto-sync, pick **one** option below.
+
+**Option A — via serial (recommended, no recompile):**
+
 1. Connect via serial (115200 baud) and type:
    ```
    WIFI_SSID=YourSSID
@@ -172,6 +176,12 @@ See **[FIX_IRAM_OVERFLOW_GUIDE.md](FIX_IRAM_OVERFLOW_GUIDE.md)** for:
 2. Verify with `WIFI?` and force a test sync with `SYNCNOW`.
 3. The radio stays OFF except for a ~20s window each hour. First sync runs ~30s after boot.
 4. Credentials are stored in EEPROM (plaintext — anyone with physical access can read them). Never commit `src/communication/wifi_secrets.h`.
+
+**Option B — compile-time defaults (for your own build only):**
+
+1. Copy `src/communication/wifi_secrets.example.h` → `src/communication/wifi_secrets.h`
+2. Fill in your SSID/password. This file is **gitignored** and will never be committed.
+3. On first boot with empty EEPROM, these seed the RAM credentials (serial commands still override and persist).
 
 > **Note:** Manual `QNH=`/`ALTREF=` disables auto-sync to protect field calibration. Re-enable with `QNHMODE=AUTO`.
 
