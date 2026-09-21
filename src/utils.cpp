@@ -40,13 +40,6 @@ float med3(float a, float b, float c)
   return b;
 }
 
-float simpleBaroAltitude(float press_hPa, float qnh_hPa)
-{
-  if (!(press_hPa > 0 && qnh_hPa > 0))
-    return NAN;
-  return 44330.0f * (1.0f - powf(press_hPa / qnh_hPa, 0.190294957f));
-}
-
 float temperatureCompensatedAltitude(float press_hPa, float qnh_hPa, float temp_C)
 {
   if (!(press_hPa > 0 && qnh_hPa > 0))

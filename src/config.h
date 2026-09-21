@@ -17,7 +17,6 @@
 
 // Sensor Configuration
 #define BME_ADDRESS 0x76
-#define BME_HEALING_MS 5000
 
 // Timing Configuration
 #define SENSOR_READ_INTERVAL_MS 30000UL
@@ -25,11 +24,6 @@
 #define OLED_DATA_SCREEN_2_DURATION 5000UL
 #define OLED_DATA_SCREEN_3_DURATION 5000UL
 #define OLED_DATA_SCREEN_4_DURATION 5000UL
-
-// Power Management Thresholds
-#define BATTERY_CRITICAL_MV 3200
-#define BATTERY_LOW_MV 3500
-#define BATTERY_NORMAL_MV 3700
 
 // Thermal Protection
 #define HOT_ENTER_C 45.0f
@@ -39,11 +33,9 @@
 // BSEC Configuration
 #define BSEC_SAVE_INTERVAL_MS 14400000UL
 #define BSEC_MIN_SAVE_GAP_MS 600000UL
-#define BSEC_BOOT_STABILIZATION_MS 300000UL
 
 // IAQ Filtering
 #define IAQ_VAR_ALPHA 0.10f
-#define IAQ_DISPLAY_MIN_ACCURACY 2
 
 // Gas Resistance Baseline
 #define GAS_EMA_ALPHA 0.20f
@@ -92,5 +84,41 @@
 #define BOOT_GRACE_MS 60000UL
 #define NO_DATA_TIMEOUT_BOOT_MS 45000UL
 #define NO_DATA_TIMEOUT_RUN_MS 20000UL
+
+// WiFi Periodic Sync (Option B: radio on only for sync window)
+#define WIFI_SSID_LEN 33 // 32 chars + null
+#define WIFI_PASS_LEN 65 // 64 chars + null
+#define WIFI_HOSTNAME "BME680-Monitor"
+#define WIFI_CONNECT_TIMEOUT_MS 15000UL
+#define WIFI_MAX_ATTEMPTS 3      // Burst retries per sync window (~1 min total)
+#define WIFI_RETRY_GAP_MS 2000UL // Radio rest between attempts in a burst
+#define WIFI_FETCH_TIMEOUT_MS 10000UL
+#define WIFI_SYNC_INTERVAL_MS 3600000UL  // Hourly QNH refresh
+#define WIFI_FIRST_SYNC_DELAY_MS 30000UL // First attempt 30s after boot
+#define WIFI_RETRY_FAIL_MS 900000UL      // Retry 15min after failure
+#define WIFI_BODY_MAX 1024               // Open-Meteo current= response buffer
+#define WIFI_API_HOST "api.open-meteo.com"
+
+// Default coordinates (overridable via serial LAT/LON, persisted)
+#define DEFAULT_LAT -6.8982836f
+#define DEFAULT_LON 107.6349833f
+
+// Auto-QNH policy
+#define QNH_AUTO_DEADBAND_HPA 0.4f // Ignore API jitter below this (~3m)
+
+// QNH valid range, single source of truth (sea-level pressure, hPa)
+#define QNH_MIN_HPA 870.0f
+#define QNH_MAX_HPA 1100.0f
+
+// WiFi EEPROM block (starts clear of BSEC blob which ends at ~175)
+#define WIFI_MAGIC_ADDR 192
+#define WIFI_MAGIC_VALUE 0x57494649
+#define WIFI_SSID_ADDR 196
+#define WIFI_PASS_ADDR 229
+#define WIFI_LAT_ADDR 294
+#define WIFI_LON_ADDR 298
+#define WIFI_FLAGS_ADDR 302
+#define WIFI_FLAG_AUTO 0x01
+#define WIFI_FLAG_AUTOSRC 0x02
 
 #endif

@@ -54,12 +54,33 @@ void resetAltitudeFiltering()
 
 void setQNH(float qnh)
 {
-  if (qnh >= 870.0f && qnh <= 1100.0f)
+  if (qnh >= QNH_MIN_HPA && qnh <= QNH_MAX_HPA)
   {
     seaLevelPressure_hPa_current = qnh;
     saveSeaLevelPressure(qnh);
+    // Manual calibration wins: freeze auto-sync so field work is never
+    // silently overridden by the next hourly fetch. Re-enable via QNHMODE=AUTO.
+    qnhSource = QNH_SOURCE_MANUAL;
+    saveQnhAuto(false);
     resetAltitudeFiltering();
   }
+}
+
+bool applyAutoQnh(float qnh)
+{
+  if (!qnhAutoEnabled)
+    return false;
+  if (!(qnh >= QNH_MIN_HPA && qnh <= QNH_MAX_HPA))
+    return false;
+  // Deadband: ignore API jitter below ~3m to keep altitude stable
+  if (fabsf(qnh - seaLevelPressure_hPa_current) < QNH_AUTO_DEADBAND_HPA)
+    return false;
+  seaLevelPressure_hPa_current = qnh;
+  saveSeaLevelPressure(qnh);
+  qnhSource = QNH_SOURCE_AUTO;
+  saveQnhSource();
+  resetAltitudeFiltering();
+  return true;
 }
 
 void calQNHFromAltRef(float href_m)
@@ -282,12 +303,6 @@ void exitHotHold()
   thermal = THERM_NORMAL;
   oledSetContrast(CONTRAST_NORMAL);
   lastDrawnState = OLED_STATE_ERROR_SCREEN;
-}
-
-void scheduleSensorRetryInitial()
-{
-  sensorRetryBackoffMs = 1000;
-  nextSensorRetryMillis = millis() + sensorRetryBackoffMs;
 }
 
 void handleSensorAutoRetry()

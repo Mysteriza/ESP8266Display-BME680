@@ -3,3 +3,6 @@
 
 # Backup files
 *.backup
+
+# Local WiFi credentials (never commit passwords)
+src/communication/wifi_secrets.h

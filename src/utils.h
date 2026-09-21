@@ -8,8 +8,6 @@ const char *getIaqCategory(float x);
 
 float med3(float a, float b, float c);
 
-float simpleBaroAltitude(float press_hPa, float qnh_hPa);
-
 float temperatureCompensatedAltitude(float press_hPa, float qnh_hPa, float temp_C);
 
 float qnhFromRef(float press_hPa, float href_m);

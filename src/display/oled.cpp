@@ -118,7 +118,7 @@ void displayScreen2_PressureAlt()
 
   snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl", (int)lroundf(envData.altitude));
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
-  display.setCursor((SCREEN_W - w1) / 2, 62);
+  display.setCursor((SCREEN_W - w1) / 2, 60);
   display.print(oledBuffer);
 
   display.display();
@@ -143,7 +143,7 @@ void displayScreen3_GasIAQ()
   display.print(oledBuffer);
 
   snprintf(oledBuffer, sizeof(oledBuffer), "AQS: %s", getIaqCategory(envData.iaqStaticDisp));
-  display.setCursor(0, 62);
+  display.setCursor(0, 60);
   display.print(oledBuffer);
 
   display.display();
@@ -170,10 +170,52 @@ void displayScreen4_Uptime()
   unsigned long m = (totalSec % 3600) / 60;
   unsigned long s = totalSec % 60;
 
-  display.setFont(&FreeSans12pt7b);
+  display.setFont(&FreeSans9pt7b);
   snprintf(oledBuffer, sizeof(oledBuffer), "%02lu:%02lu:%02lu", h, m, s);
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 34);
+  display.print(oledBuffer);
+
+  // NOTE: default font draws DOWNWARD from cursor (8px tall).
+  // Line 1 (y=42, rows 42..49): live QNH value.
+  // Line 2 (y=54, rows 54..61): sync age / state.
+  display.setFont();
+  snprintf(oledBuffer, sizeof(oledBuffer), "QNH %.1f", seaLevelPressure_hPa_current);
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 42);
+  display.print(oledBuffer);
+
+  if (wifiSsid[0] != '\0' && qnhSource != QNH_SOURCE_MANUAL)
+  {
+    if (lastQnhSyncMs)
+    {
+      unsigned long ageMin = (nowMs - lastQnhSyncMs) / 60000UL;
+      if (ageMin < 1)
+        snprintf(oledBuffer, sizeof(oledBuffer), "SYNC NOW");
+      else if (ageMin < 60)
+        snprintf(oledBuffer, sizeof(oledBuffer), "SYNC %lum AGO", ageMin);
+      else
+        snprintf(oledBuffer, sizeof(oledBuffer), "SYNC %luh AGO", (ageMin + 30) / 60);
+    }
+    else if (wifiFailCount > 0)
+    {
+      snprintf(oledBuffer, sizeof(oledBuffer), "SYNC FAIL");
+    }
+    else
+    {
+      snprintf(oledBuffer, sizeof(oledBuffer), "WIFI WAIT");
+    }
+  }
+  else if (qnhSource == QNH_SOURCE_MANUAL)
+  {
+    snprintf(oledBuffer, sizeof(oledBuffer), "MANUAL");
+  }
+  else
+  {
+    snprintf(oledBuffer, sizeof(oledBuffer), "QNH DEF");
+  }
+  display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
+  display.setCursor((SCREEN_W - w1) / 2, 54);
   display.print(oledBuffer);
 
   display.display();
@@ -222,12 +264,26 @@ static bool shouldRedrawScreen3()
          prev_AQS != getIaqCategory(envData.iaqStaticDisp);
 }
 
+static QnhSource prevQnhSrc = QNH_SOURCE_DEFAULT;
+static unsigned long prevSyncMin = 0;
+static uint8_t prevFail = 0;
+static float prevQnhVal = NAN;
+
+static unsigned long qnhSyncAgeMin()
+{
+  return lastQnhSyncMs ? (millis() - lastQnhSyncMs) / 60000UL : 0;
+}
+
 static bool shouldRedrawScreen4()
 {
   if (currentOledScreenState != lastDrawnState)
     return true;
   unsigned long nowSec = millis() / 1000;
-  return nowSec != prevUptimeSec;
+  return nowSec != prevUptimeSec ||
+         qnhSource != prevQnhSrc ||
+         qnhSyncAgeMin() != prevSyncMin ||
+         wifiFailCount != prevFail ||
+         seaLevelPressure_hPa_current != prevQnhVal;
 }
 
 static void stampScreen1()
@@ -256,6 +312,10 @@ static void stampScreen3()
 static void stampScreen4()
 {
   prevUptimeSec = millis() / 1000;
+  prevQnhSrc = qnhSource;
+  prevSyncMin = qnhSyncAgeMin();
+  prevFail = wifiFailCount;
+  prevQnhVal = seaLevelPressure_hPa_current;
   lastDrawnState = OLED_STATE_DATA_SCREEN_4;
 }
 

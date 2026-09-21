@@ -9,5 +9,10 @@ void saveBsecState();
 void loadPersistent();
 void saveSeaLevelPressure(float p);
 void saveGasBaseline(float b, bool rdy);
+void loadWifiConfig();
+void saveWifiConfig();
+void clearWifiConfig();
+void saveQnhAuto(bool enabled);
+void saveQnhSource();
 
 #endif

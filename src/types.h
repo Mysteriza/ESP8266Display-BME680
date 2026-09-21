@@ -4,8 +4,7 @@
 enum AppMode
 {
   MODE_OFFLINE,
-  MODE_BME_ERROR,
-  MODE_POWER_CRITICAL
+  MODE_BME_ERROR
 };
 
 enum OledDisplayState
@@ -24,12 +23,12 @@ enum ThermalState
   THERM_HOT_HOLD
 };
 
-enum PowerState
+/// @brief Origin of the active QNH value (drives altitude)
+enum QnhSource : uint8_t
 {
-  POWER_ACTIVE,
-  POWER_DISPLAY_OFF,
-  POWER_SLEEP_PREP,
-  POWER_CRITICAL
+  QNH_SOURCE_DEFAULT, ///< EEPROM default / fallback
+  QNH_SOURCE_MANUAL,  ///< Serial QNH= or ALTREF= (disables auto)
+  QNH_SOURCE_AUTO     ///< Open-Meteo periodic sync
 };
 
 #endif

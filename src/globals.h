@@ -13,7 +13,6 @@ extern Bsec iaqSensor;
 extern char oledBuffer[64];
 
 extern AppMode currentAppMode;
-extern PowerState currentPowerState;
 extern OledDisplayState currentOledScreenState;
 extern ThermalState thermal;
 
@@ -75,5 +74,17 @@ extern bool baselineFrozen;
 extern float gAltSmooth;
 extern float altRaw3[3];
 extern uint8_t altIdx, altCnt;
+
+// WiFi periodic sync + auto-QNH state
+extern char wifiSsid[WIFI_SSID_LEN];
+extern char wifiPass[WIFI_PASS_LEN];
+extern float wifiLat;
+extern float wifiLon;
+extern bool qnhAutoEnabled;
+extern QnhSource qnhSource;
+extern unsigned long lastQnhSyncMs;
+extern int wifiLastHttpCode;
+extern int wifiLastStatus;
+extern uint8_t wifiFailCount;
 
 #endif

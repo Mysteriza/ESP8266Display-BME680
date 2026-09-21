@@ -1,6 +1,8 @@
 #include "storage.h"
 #include "../globals.h"
 
+static void writeWifiFlags();
+
 bool loadBsecState()
 {
   uint32_t magic = 0;
@@ -53,8 +55,8 @@ void loadPersistent()
 
   EEPROM.get(SEA_LEVEL_PRESSURE_ADDR, seaLevelPressure_hPa_current);
   if (isnan(seaLevelPressure_hPa_current) ||
-      seaLevelPressure_hPa_current < 870.0f ||
-      seaLevelPressure_hPa_current > 1100.0f)
+      seaLevelPressure_hPa_current < QNH_MIN_HPA ||
+      seaLevelPressure_hPa_current > QNH_MAX_HPA)
   {
     seaLevelPressure_hPa_current = 1012.50f;
     EEPROM.put(SEA_LEVEL_PRESSURE_ADDR, seaLevelPressure_hPa_current);
@@ -65,6 +67,94 @@ void loadPersistent()
   uint8_t rdy = 0;
   EEPROM.get(GAS_BASELINE_READY_ADDR, rdy);
   gasBaselineReady = (rdy != 0);
+
+  loadWifiConfig();
+}
+
+static void readEepromStr(int addr, char *dst, size_t cap)
+{
+  for (size_t i = 0; i < cap; i++)
+  {
+    EEPROM.get(addr + (int)i, dst[i]);
+    if (dst[i] == '\0')
+      break;
+  }
+  dst[cap - 1] = '\0';
+}
+
+void loadWifiConfig()
+{
+  uint32_t magic = 0;
+  EEPROM.get(WIFI_MAGIC_ADDR, magic);
+
+  if (magic != WIFI_MAGIC_VALUE)
+  {
+    // First run: empty credentials, defaults seeded later by wifiQnhBegin()
+    memset(wifiSsid, 0, WIFI_SSID_LEN);
+    memset(wifiPass, 0, WIFI_PASS_LEN);
+    wifiLat = DEFAULT_LAT;
+    wifiLon = DEFAULT_LON;
+    qnhAutoEnabled = true;
+    qnhSource = QNH_SOURCE_DEFAULT;
+    return;
+  }
+
+  readEepromStr(WIFI_SSID_ADDR, wifiSsid, WIFI_SSID_LEN);
+  readEepromStr(WIFI_PASS_ADDR, wifiPass, WIFI_PASS_LEN);
+  EEPROM.get(WIFI_LAT_ADDR, wifiLat);
+  EEPROM.get(WIFI_LON_ADDR, wifiLon);
+  uint8_t flags = 0;
+  EEPROM.get(WIFI_FLAGS_ADDR, flags);
+  qnhAutoEnabled = (flags & WIFI_FLAG_AUTO) != 0;
+  if ((flags & WIFI_FLAG_AUTOSRC) != 0)
+    qnhSource = QNH_SOURCE_AUTO;
+
+  if (!(wifiLat >= -90.0f && wifiLat <= 90.0f))
+    wifiLat = DEFAULT_LAT;
+  if (!(wifiLon >= -180.0f && wifiLon <= 180.0f))
+    wifiLon = DEFAULT_LON;
+}
+
+void saveWifiConfig()
+{
+  for (size_t i = 0; i < WIFI_SSID_LEN; i++)
+    EEPROM.put(WIFI_SSID_ADDR + (int)i, wifiSsid[i]);
+  for (size_t i = 0; i < WIFI_PASS_LEN; i++)
+    EEPROM.put(WIFI_PASS_ADDR + (int)i, wifiPass[i]);
+  EEPROM.put(WIFI_LAT_ADDR, wifiLat);
+  EEPROM.put(WIFI_LON_ADDR, wifiLon);
+  writeWifiFlags();
+  EEPROM.put(WIFI_MAGIC_ADDR, (uint32_t)WIFI_MAGIC_VALUE);
+  EEPROM.commit();
+}
+
+void clearWifiConfig()
+{
+  memset(wifiSsid, 0, WIFI_SSID_LEN);
+  memset(wifiPass, 0, WIFI_PASS_LEN);
+  saveWifiConfig();
+}
+
+static void writeWifiFlags()
+{
+  uint8_t flags = 0;
+  if (qnhAutoEnabled)
+    flags |= WIFI_FLAG_AUTO;
+  if (qnhSource == QNH_SOURCE_AUTO)
+    flags |= WIFI_FLAG_AUTOSRC;
+  EEPROM.put(WIFI_FLAGS_ADDR, flags);
+  EEPROM.commit();
+}
+
+void saveQnhAuto(bool enabled)
+{
+  qnhAutoEnabled = enabled;
+  writeWifiFlags();
+}
+
+void saveQnhSource()
+{
+  writeWifiFlags();
 }
 
 void saveSeaLevelPressure(float p)
