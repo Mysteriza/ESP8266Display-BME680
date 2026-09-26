@@ -14,6 +14,12 @@
 #ifndef WIFI_DEFAULT_PASS
 #define WIFI_DEFAULT_PASS ""
 #endif
+#ifndef WIFI_DEFAULT_SSID2
+#define WIFI_DEFAULT_SSID2 ""
+#endif
+#ifndef WIFI_DEFAULT_PASS2
+#define WIFI_DEFAULT_PASS2 ""
+#endif
 
 namespace
 {
@@ -27,6 +33,9 @@ WqState wqState = WQ_IDLE;
 unsigned long wqNextSyncMs = 0;
 unsigned long wqConnectStartMs = 0;
 uint8_t wqAttempt = 0;
+uint8_t wqCand[WIFI_MAX_NETS] = {0};
+uint8_t wqCandCount = 0;
+uint8_t wqCandPos = 0;
 
 void radioWake()
 {
@@ -212,7 +221,47 @@ HEADERS_DONE:
 
 bool wifiQnhHasCreds()
 {
-  return wifiSsid[0] != '\0';
+  for (uint8_t i = 0; i < WIFI_MAX_NETS; i++)
+    if (wifiNets[i].ssid[0] != '\0')
+      return true;
+  return false;
+}
+
+// Scan surroundings and order stored networks by slot priority.
+// Falls back to a blind slot-0 attempt (hidden SSID) when nothing matches.
+uint8_t buildCandidates()
+{
+  wqCandCount = 0;
+  int n = WiFi.scanNetworks(false, true);
+  if (n < 0)
+    n = 0;
+  for (uint8_t s = 0; s < WIFI_MAX_NETS && wqCandCount < WIFI_MAX_NETS; s++)
+  {
+    if (wifiNets[s].ssid[0] == '\0')
+      continue;
+    for (int i = 0; i < n; i++)
+    {
+      String ap = WiFi.SSID(i); // short-lived, freed each iteration
+      if (ap == wifiNets[s].ssid)
+      {
+        wqCand[wqCandCount++] = s;
+        break;
+      }
+    }
+  }
+  WiFi.scanDelete();
+  if (wqCandCount == 0 && wifiNets[0].ssid[0] != '\0')
+    wqCand[wqCandCount++] = 0; // hidden-SSID fallback
+  return wqCandCount;
+}
+
+void beginCandidate()
+{
+  uint8_t slot = wqCand[wqCandPos];
+  strncpy(wifiLastAp, wifiNets[slot].ssid, WIFI_SSID_LEN - 1);
+  wifiLastAp[WIFI_SSID_LEN - 1] = '\0';
+  WiFi.begin(wifiNets[slot].ssid, wifiNets[slot].pass);
+  wqConnectStartMs = millis();
 }
 
 void wifiQnhForceSync()
@@ -221,16 +270,22 @@ void wifiQnhForceSync()
     wqNextSyncMs = millis();
 }
 
+static void seedSlot(uint8_t slot, const char *ssid, const char *pass)
+{
+  if (wifiNets[slot].ssid[0] == '\0' && ssid[0] != '\0')
+  {
+    strncpy(wifiNets[slot].ssid, ssid, WIFI_SSID_LEN - 1);
+    wifiNets[slot].ssid[WIFI_SSID_LEN - 1] = '\0';
+    strncpy(wifiNets[slot].pass, pass, WIFI_PASS_LEN - 1);
+    wifiNets[slot].pass[WIFI_PASS_LEN - 1] = '\0';
+  }
+}
+
 void wifiQnhBegin()
 {
   // Seed RAM from compile-time defaults on first boot (EEPROM empty)
-  if (wifiSsid[0] == '\0' && WIFI_DEFAULT_SSID[0] != '\0')
-  {
-    strncpy(wifiSsid, WIFI_DEFAULT_SSID, WIFI_SSID_LEN - 1);
-    wifiSsid[WIFI_SSID_LEN - 1] = '\0';
-    strncpy(wifiPass, WIFI_DEFAULT_PASS, WIFI_PASS_LEN - 1);
-    wifiPass[WIFI_PASS_LEN - 1] = '\0';
-  }
+  seedSlot(0, WIFI_DEFAULT_SSID, WIFI_DEFAULT_PASS);
+  seedSlot(1, WIFI_DEFAULT_SSID2, WIFI_DEFAULT_PASS2);
 
   WiFi.persistent(false);
   WiFi.setAutoConnect(false);
@@ -254,9 +309,20 @@ void wifiQnhTick()
     if ((long)(now - wqNextSyncMs) < 0)
       return;
     radioWake();
-    WiFi.begin(wifiSsid, wifiPass);
-    wqConnectStartMs = now;
+    if (buildCandidates() == 0)
+    {
+      Serial.println(F("WiFiQNH: no known AP in range"));
+      if (wifiFailCount < 255)
+        wifiFailCount++;
+      wifiLastHttpCode = -1;
+      wifiLastStatus = (int)WiFi.status();
+      radioSleep();
+      wqNextSyncMs = millis() + WIFI_RETRY_FAIL_MS;
+      return;
+    }
     wqAttempt = 1;
+    wqCandPos = 0;
+    beginCandidate();
     wqState = WQ_CONNECTING;
     return;
   }
@@ -302,14 +368,16 @@ void wifiQnhTick()
     wifiLastStatus = (int)WiFi.status();
     if (wqAttempt < WIFI_MAX_ATTEMPTS)
     {
-      // Burst retry inside the same ~1min window: re-probe the AP
+      // Next candidate (rotates when several known APs are visible,
+      // retries the same one when only one is around) — max 3 tries/min.
       wqAttempt++;
-      Serial.printf("WiFiQNH: try %u/%u st=%d, retry\r\n",
-                    wqAttempt, WIFI_MAX_ATTEMPTS, wifiLastStatus);
+      wqCandPos = (wqCandPos + 1) % wqCandCount;
+      Serial.printf("WiFiQNH: try %u/%u '%s' st=%d\r\n",
+                    wqAttempt, WIFI_MAX_ATTEMPTS,
+                    wifiNets[wqCand[wqCandPos]].ssid, wifiLastStatus);
       WiFi.disconnect();
       delay(WIFI_RETRY_GAP_MS);
-      WiFi.begin(wifiSsid, wifiPass);
-      wqConnectStartMs = millis();
+      beginCandidate();
     }
     else
     {
@@ -319,6 +387,7 @@ void wifiQnhTick()
       Serial.printf("WiFiQNH: no wifi after %u tries (st=%d)\r\n",
                     wqAttempt, wifiLastStatus);
       wqAttempt = 0;
+      wqCandCount = 0;
       radioSleep();
       wqState = WQ_IDLE;
       wqNextSyncMs = millis() + WIFI_RETRY_FAIL_MS;

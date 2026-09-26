@@ -82,6 +82,24 @@ static void readEepromStr(int addr, char *dst, size_t cap)
   dst[cap - 1] = '\0';
 }
 
+static int slotSsidAddr(uint8_t slot)
+{
+  if (slot == 1)
+    return WIFI2_SSID_ADDR;
+  if (slot == 2)
+    return WIFI3_SSID_ADDR;
+  return WIFI_SSID_ADDR;
+}
+
+static int slotPassAddr(uint8_t slot)
+{
+  if (slot == 1)
+    return WIFI2_PASS_ADDR;
+  if (slot == 2)
+    return WIFI3_PASS_ADDR;
+  return WIFI_PASS_ADDR;
+}
+
 void loadWifiConfig()
 {
   uint32_t magic = 0;
@@ -90,8 +108,7 @@ void loadWifiConfig()
   if (magic != WIFI_MAGIC_VALUE)
   {
     // First run: empty credentials, defaults seeded later by wifiQnhBegin()
-    memset(wifiSsid, 0, WIFI_SSID_LEN);
-    memset(wifiPass, 0, WIFI_PASS_LEN);
+    memset(wifiNets, 0, sizeof(wifiNets));
     wifiLat = DEFAULT_LAT;
     wifiLon = DEFAULT_LON;
     qnhAutoEnabled = true;
@@ -99,8 +116,13 @@ void loadWifiConfig()
     return;
   }
 
-  readEepromStr(WIFI_SSID_ADDR, wifiSsid, WIFI_SSID_LEN);
-  readEepromStr(WIFI_PASS_ADDR, wifiPass, WIFI_PASS_LEN);
+  for (uint8_t i = 0; i < WIFI_MAX_NETS; i++)
+  {
+    readEepromStr(slotSsidAddr(i), wifiNets[i].ssid, WIFI_SSID_LEN);
+    readEepromStr(slotPassAddr(i), wifiNets[i].pass, WIFI_PASS_LEN);
+    if (wifiNets[i].ssid[0] == '\0')
+      wifiNets[i].pass[0] = '\0'; // orphan password without SSID is unusable
+  }
   EEPROM.get(WIFI_LAT_ADDR, wifiLat);
   EEPROM.get(WIFI_LON_ADDR, wifiLon);
   uint8_t flags = 0;
@@ -117,10 +139,13 @@ void loadWifiConfig()
 
 void saveWifiConfig()
 {
-  for (size_t i = 0; i < WIFI_SSID_LEN; i++)
-    EEPROM.put(WIFI_SSID_ADDR + (int)i, wifiSsid[i]);
-  for (size_t i = 0; i < WIFI_PASS_LEN; i++)
-    EEPROM.put(WIFI_PASS_ADDR + (int)i, wifiPass[i]);
+  for (uint8_t i = 0; i < WIFI_MAX_NETS; i++)
+  {
+    for (size_t j = 0; j < WIFI_SSID_LEN; j++)
+      EEPROM.put(slotSsidAddr(i) + (int)j, wifiNets[i].ssid[j]);
+    for (size_t j = 0; j < WIFI_PASS_LEN; j++)
+      EEPROM.put(slotPassAddr(i) + (int)j, wifiNets[i].pass[j]);
+  }
   EEPROM.put(WIFI_LAT_ADDR, wifiLat);
   EEPROM.put(WIFI_LON_ADDR, wifiLon);
   writeWifiFlags();
@@ -130,8 +155,7 @@ void saveWifiConfig()
 
 void clearWifiConfig()
 {
-  memset(wifiSsid, 0, WIFI_SSID_LEN);
-  memset(wifiPass, 0, WIFI_PASS_LEN);
+  memset(wifiNets, 0, sizeof(wifiNets));
   saveWifiConfig();
 }
 

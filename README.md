@@ -53,7 +53,7 @@ The device is designed for **continuous operation** with robust error handling, 
 ### Periodic WiFi QNH Sync (battery-friendly)
 
 - Radio stays **OFF**; wakes **hourly** to fetch `current.pressure_msl` from Open-Meteo, then sleeps again.
-- Each window tries up to **3× within ~1 minute** (15s timeout each); if all fail, radio sleeps and retries in 15 minutes.
+- Up to **3 WiFi networks** can be stored (slot 1 = priority). Each window **scans** for known SSIDs first, then connects in priority order — up to **3× within ~1 minute** (15s each); if all fail, radio sleeps and retries in 15 minutes.
 - No WiFi credentials → pure offline mode with EEPROM default QNH (existing behavior).
 - WiFi drop mid-sync → keeps last valid QNH, retries in 15 minutes.
 - ⚠️ ESP8266 is **2.4 GHz only** — a 5 GHz-only AP can never connect. Diagnose via serial: `st=1` = AP not visible (wrong SSID / 5 GHz / out of range), `st=4` = auth failed (wrong password), `st=6` = disconnected mid-way.
@@ -170,6 +170,8 @@ See **[FIX_IRAM_OVERFLOW_GUIDE.md](FIX_IRAM_OVERFLOW_GUIDE.md)** for:
    ```
    WIFI_SSID=YourSSID
    WIFI_PASS=YourPassword
+   WIFI2_SSID=BackupSSID
+   WIFI2_PASS=BackupPassword
    LAT=-6.898284
    LON=107.634983
    ```
@@ -248,8 +250,9 @@ Connect via serial monitor (115200 baud) and use:
 | `PRESS?`           | Query current pressure                 | `P=933.10 hPa`                      |
 | `ALTREF=<m>`       | Auto-calculate QNH from known altitude | `OK QNH=1013.25 hPa (MAN, auto off)`|
 | `STATUS`           | Show system status                     | `Mode:0 Therm:0 BSEC:Y IAQ:45.2(3)` |
-| `WIFI_SSID=<s>`    | Save WiFi SSID (1..32 chars)           | `OK WIFI_SSID=Hackerman`            |
-| `WIFI_PASS=<p>`    | Save WiFi password (never echoed)      | `OK WIFI saved`                     |
+| `WIFI_SSID=<s>`    | Save WiFi SSID slot 1 (1..32 chars)    | `OK slot1 ssid=...`                 |
+| `WIFI_PASS=<p>`    | Save WiFi password slot 1 (never echoed) | `OK slot1 pass saved`             |
+| `WIFI2_SSID=<s>` / `WIFI3_SSID=<s>` | Backup networks (slots 2–3) | `OK slot2 ssid=...`          |
 | `WIFI?`            | Show WiFi/QNH-sync status              | `WIFI ssid=... auto=Y src=AUTO ...` |
 | `WIFICLEAR`        | Erase stored WiFi credentials          | `OK WIFI cleared`                   |
 | `LAT=<f>` / `LON=<f>` | Set Open-Meteo coordinates          | `OK LAT=-6.898284`                  |
@@ -465,7 +468,7 @@ ESP8266Display-BME680.ino   (setup + main loop)
 
 - **Flash:** ~380 KB (varies with libraries)
 - **SRAM:** ~42 KB
-- **EEPROM:** 512 bytes (128 bytes used)
+- **EEPROM:** 1024 bytes (~522 used: BSEC state + QNH + 3 WiFi slots)
 
 ### Timing
 

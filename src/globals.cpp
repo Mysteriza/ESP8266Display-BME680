@@ -66,8 +66,7 @@ float gAltSmooth = NAN;
 float altRaw3[3] = {NAN, NAN, NAN};
 uint8_t altIdx = 0, altCnt = 0;
 
-char wifiSsid[WIFI_SSID_LEN] = {0};
-char wifiPass[WIFI_PASS_LEN] = {0};
+WifiCred wifiNets[WIFI_MAX_NETS] = {};
 float wifiLat = DEFAULT_LAT;
 float wifiLon = DEFAULT_LON;
 bool qnhAutoEnabled = true;
@@ -76,3 +75,4 @@ unsigned long lastQnhSyncMs = 0;
 int wifiLastHttpCode = 0;
 int wifiLastStatus = 0;
 uint8_t wifiFailCount = 0;
+char wifiLastAp[WIFI_SSID_LEN] = {0};

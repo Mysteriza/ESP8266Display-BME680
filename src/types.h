@@ -1,6 +1,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include "config.h"
+
 enum AppMode
 {
   MODE_OFFLINE,
@@ -21,6 +23,13 @@ enum ThermalState
 {
   THERM_NORMAL,
   THERM_HOT_HOLD
+};
+
+/// @brief One stored WiFi network (fixed-size, EEPROM-friendly)
+struct WifiCred
+{
+  char ssid[WIFI_SSID_LEN];
+  char pass[WIFI_PASS_LEN];
 };
 
 /// @brief Origin of the active QNH value (drives altitude)

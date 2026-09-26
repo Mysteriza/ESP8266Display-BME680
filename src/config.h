@@ -69,7 +69,7 @@
 #define CONTRAST_OVERHEAT 0x04
 
 // EEPROM Memory Map
-#define EEPROM_SIZE 512
+#define EEPROM_SIZE 1024
 #define EEPROM_MAGIC_ADDR 0
 #define EEPROM_MAGIC_VALUE 0xB6680A11
 #define SEA_LEVEL_PRESSURE_ADDR 4
@@ -88,6 +88,7 @@
 // WiFi Periodic Sync (Option B: radio on only for sync window)
 #define WIFI_SSID_LEN 33 // 32 chars + null
 #define WIFI_PASS_LEN 65 // 64 chars + null
+#define WIFI_MAX_NETS 3  // Stored networks, tried in slot priority order
 #define WIFI_HOSTNAME "BME680-Monitor"
 #define WIFI_CONNECT_TIMEOUT_MS 15000UL
 #define WIFI_MAX_ATTEMPTS 3      // Burst retries per sync window (~1 min total)
@@ -120,5 +121,10 @@
 #define WIFI_FLAGS_ADDR 302
 #define WIFI_FLAG_AUTO 0x01
 #define WIFI_FLAG_AUTOSRC 0x02
+// Extra network slots (slot 0 = legacy addresses above)
+#define WIFI2_SSID_ADDR 320
+#define WIFI2_PASS_ADDR 353
+#define WIFI3_SSID_ADDR 424
+#define WIFI3_PASS_ADDR 457
 
 #endif

@@ -1,6 +1,7 @@
 #include "oled.h"
 #include "../globals.h"
 #include "../utils.h"
+#include "../communication/wifi_qnh.h"
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
 
@@ -185,7 +186,7 @@ void displayScreen4_Uptime()
   display.setCursor((SCREEN_W - w1) / 2, 42);
   display.print(oledBuffer);
 
-  if (wifiSsid[0] != '\0' && qnhSource != QNH_SOURCE_MANUAL)
+  if (wifiQnhHasCreds() && qnhSource != QNH_SOURCE_MANUAL)
   {
     if (lastQnhSyncMs)
     {
