@@ -38,8 +38,10 @@ void handleSerialInput()
         if (strncmp(line, "QNH=", 4) == 0)
         {
           float qnh = atof(line + 4);
-          setQNH(qnh);
-          Serial.printf("OK QNH=%.2f hPa (MAN, auto off)\r\n", seaLevelPressure_hPa_current);
+          if (setQNH(qnh))
+            Serial.printf("OK QNH=%.2f hPa (MAN, auto off)\r\n", seaLevelPressure_hPa_current);
+          else
+            Serial.println(F("ERR QNH 870..1100"));
         }
         else if (strcasecmp(line, "QNH?") == 0)
         {

@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 bool initBSEC();
-void setQNH(float qnh);
+bool setQNH(float qnh);
 bool applyAutoQnh(float qnh);
 void calQNHFromAltRef(float href_m);
 void bsecLoopTick();

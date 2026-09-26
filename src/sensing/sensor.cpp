@@ -52,18 +52,18 @@ void resetAltitudeFiltering()
   lastDrawnState = OLED_STATE_ERROR_SCREEN;
 }
 
-void setQNH(float qnh)
+bool setQNH(float qnh)
 {
-  if (qnh >= QNH_MIN_HPA && qnh <= QNH_MAX_HPA)
-  {
-    seaLevelPressure_hPa_current = qnh;
-    saveSeaLevelPressure(qnh);
-    // Manual calibration wins: freeze auto-sync so field work is never
-    // silently overridden by the next hourly fetch. Re-enable via QNHMODE=AUTO.
-    qnhSource = QNH_SOURCE_MANUAL;
-    saveQnhAuto(false);
-    resetAltitudeFiltering();
-  }
+  if (!(qnh >= QNH_MIN_HPA && qnh <= QNH_MAX_HPA))
+    return false;
+  seaLevelPressure_hPa_current = qnh;
+  saveSeaLevelPressure(qnh);
+  // Manual calibration wins: freeze auto-sync so field work is never
+  // silently overridden by the next hourly fetch. Re-enable via QNHMODE=AUTO.
+  qnhSource = QNH_SOURCE_MANUAL;
+  saveQnhAuto(false);
+  resetAltitudeFiltering();
+  return true;
 }
 
 bool applyAutoQnh(float qnh)

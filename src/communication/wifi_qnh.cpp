@@ -149,8 +149,9 @@ int fetchPressureMsl(float *out)
       if (tail[0] == '\r' && tail[1] == '\n' && tail[2] == '\r' && tail[3] == '\n')
         goto HEADERS_DONE;
     }
-    if (!client.connected())
-      break;
+    // NOTE: no break on disconnect here — on ESP8266, connected() can read
+    // false while the final packet is still in flight. The deadline bounds
+    // this loop; late bytes are drained by the inner while above.
     yield();
   }
   client.stop();
