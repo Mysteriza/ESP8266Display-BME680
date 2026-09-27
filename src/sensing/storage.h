@@ -14,7 +14,5 @@ void saveWifiConfig();
 void clearWifiConfig();
 void saveQnhAuto(bool enabled);
 void saveQnhSource();
-void loadQnhHistory();
-void pushQnhHistory(float v);
 
 #endif

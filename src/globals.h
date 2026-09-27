@@ -86,7 +86,5 @@ extern int wifiLastHttpCode;
 extern int wifiLastStatus;
 extern uint8_t wifiFailCount;
 extern char wifiLastAp[WIFI_SSID_LEN];
-extern float qnhHist[QNH_HIST_N];
-extern uint8_t qnhHistN;
 
 #endif

@@ -1,6 +1,5 @@
 #include "wifi_qnh.h"
 #include "../globals.h"
-#include "../utils.h"
 #include "../sensing/storage.h"
 #include "../sensing/sensor.h"
 #include <ESP8266WiFi.h>
@@ -339,10 +338,6 @@ void wifiQnhTick()
     {
       lastQnhSyncMs = millis();
       wifiFailCount = 0;
-      pushQnhHistory(p); // raw value: trend tracks weather, not deadband
-      float tr = qnhTrendPerHour(qnhHist, qnhHistN);
-      if (tr <= QNH_STORM_FALL_HPA)
-        Serial.println(F("WiFiQNH: WX ALERT pressure falling fast, altitude drifting"));
       if (qnhAutoEnabled && qnhSource != QNH_SOURCE_AUTO)
       {
         // Fresh API validation: record AUTO provenance even when the
@@ -351,9 +346,9 @@ void wifiQnhTick()
         saveQnhSource();
       }
       if (applyAutoQnh(p))
-        Serial.printf("WiFiQNH: QNH=%.2f hPa (auto) trend %+.1f/h\r\n", p, tr);
+        Serial.printf("WiFiQNH: QNH=%.2f hPa (auto)\r\n", p);
       else
-        Serial.printf("WiFiQNH: QNH=%.2f hPa (within deadband/held) trend %+.1f/h\r\n", p, tr);
+        Serial.printf("WiFiQNH: QNH=%.2f hPa (within deadband/held)\r\n", p);
       wqNextSyncMs = millis() + WIFI_SYNC_INTERVAL_MS;
     }
     else

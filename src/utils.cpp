@@ -61,19 +61,3 @@ bool hasChanged(float current, float previous, float threshold)
     return true;
   return fabsf(current - previous) >= threshold;
 }
-
-float qnhTrendPerHour(const float *hist, uint8_t n)
-{
-  if (!hist || n < 2)
-    return 0.0f;
-  return (hist[n - 1] - hist[0]) / (float)(n - 1);
-}
-
-char qnhTrendArrow(float ratePerHour)
-{
-  if (ratePerHour >= QNH_TREND_RISE_HPA)
-    return '^';
-  if (ratePerHour <= QNH_TREND_FALL_HPA)
-    return 'v';
-  return '~';
-}

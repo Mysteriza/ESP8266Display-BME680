@@ -111,16 +111,6 @@
 #define QNH_MIN_HPA 870.0f
 #define QNH_MAX_HPA 1100.0f
 
-// QNH trend (weather-front awareness). Zero extra radio: reuses the hourly
-// fetch. History holds RAW fetched values (pre-deadband). Rate assumes the
-// nominal hourly cadence, so bursts/retries skew it short-term by design.
-#define QNH_HIST_N 6
-#define QNH_HIST_ADDR 560
-#define QNH_HIST_META_ADDR 584 // count byte
-#define QNH_TREND_RISE_HPA 0.15f
-#define QNH_TREND_FALL_HPA -0.15f
-#define QNH_STORM_FALL_HPA -1.0f
-
 // WiFi EEPROM block (starts clear of BSEC blob which ends at ~175)
 #define WIFI_MAGIC_ADDR 192
 #define WIFI_MAGIC_VALUE 0x57494649
