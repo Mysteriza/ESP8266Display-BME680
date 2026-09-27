@@ -32,7 +32,7 @@ The device is designed for **continuous operation** with robust error handling, 
 
 - **Continuous Display Mode:** OLED display remains active 24/7, cycling through four data screens:
   - **Screen 1 (5s):** Temperature & Humidity
-  - **Screen 2 (5s):** Pressure & Altitude
+  - **Screen 2 (5s):** Pressure & Altitude + QNH trend arrow (`^` rising / `v` falling / `~` steady)
   - **Screen 3 (5s):** Gas Resistance, IAQ, Accuracy, Air Quality Status
   - **Screen 4 (5s):** System Uptime (HH:MM:SS)
 - **Incremental Refresh:** Screen only updates when values change beyond thresholds, reducing flicker and CPU usage.
@@ -60,6 +60,7 @@ The device is designed for **continuous operation** with robust error handling, 
 - **Manual `QNH=`/`ALTREF=` always wins** and freezes auto-sync (re-enable with `QNHMODE=AUTO`) so field calibration is never silently overridden.
 - Auto-apply uses a **0.4 hPa deadband** (~3 m) to ignore API jitter and keep altitude stable.
 - Every successful fetch marks source **AUTO** (persisted across reboots), even when the value is held by the deadband — so the display always tells the truth about data freshness.
+- **QNH trend (zero extra cost):** each fetched value is recorded into a 6-sample persisted history; the altitude line shows `^`/`v`/`~` and serial logs the rate (`trend -0.4/h`). A falling trend means weather is moving and altitude is drifting — recalibrate sooner. A fall faster than 1.0 hPa/h raises a `WX ALERT` on serial.
 - Screen 4 (Uptime) shows sync state: `AUTO 35m` (synced, age) / `WIFI WAIT` (creds ready, first sync pending) / `SYNC FAIL` (attempts failing, check serial log) / `MANUAL` / `QNH DEF` (no creds).
 
 ---
@@ -265,7 +266,7 @@ Connect via serial monitor (115200 baud) and use:
 The OLED continuously cycles through 4 screens:
 
 1. **Screen 1 (5s):** Temperature & Humidity
-2. **Screen 2 (5s):** Pressure & Altitude
+2. **Screen 2 (5s):** Pressure & Altitude + trend arrow
 3. **Screen 3 (5s):** Gas Resistance, IAQ, Accuracy, AQS
 4. **Screen 4 (5s):** System Uptime (HH:MM:SS) + live `QNH xxxx.x` value + sync age line (`SYNC 10m AGO` / `WIFI WAIT` / `SYNC FAIL` / `MANUAL` / `QNH DEF`)
 5. **Loops back to Screen 1** → Continuous monitoring mode
@@ -468,7 +469,7 @@ ESP8266Display-BME680.ino   (setup + main loop)
 
 - **Flash:** ~380 KB (varies with libraries)
 - **SRAM:** ~42 KB
-- **EEPROM:** 1024 bytes (~522 used: BSEC state + QNH + 3 WiFi slots)
+- **EEPROM:** 1024 bytes (~586 used: BSEC state + QNH + 3 WiFi slots + QNH history)
 
 ### Timing
 

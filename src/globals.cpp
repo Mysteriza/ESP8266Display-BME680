@@ -76,3 +76,5 @@ int wifiLastHttpCode = 0;
 int wifiLastStatus = 0;
 uint8_t wifiFailCount = 0;
 char wifiLastAp[WIFI_SSID_LEN] = {0};
+float qnhHist[QNH_HIST_N] = {0};
+uint8_t qnhHistN = 0;

@@ -117,7 +117,11 @@ void displayScreen2_PressureAlt()
   display.setCursor((SCREEN_W - w1) / 2, 38);
   display.print(oledBuffer);
 
-  snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl", (int)lroundf(envData.altitude));
+  // Trailing arrow = hourly QNH trend (weather-front awareness):
+  // '^' rising, 'v' falling, '~' steady. Fast falls mean altitude is drifting.
+  snprintf(oledBuffer, sizeof(oledBuffer), "%d mdpl %c",
+           (int)lroundf(envData.altitude),
+           qnhTrendArrow(qnhTrendPerHour(qnhHist, qnhHistN)));
   display.getTextBounds(oledBuffer, 0, 0, &x1, &y1, &w1, &h1);
   display.setCursor((SCREEN_W - w1) / 2, 60);
   display.print(oledBuffer);
@@ -244,13 +248,18 @@ static bool shouldRedrawScreen1()
   return hasChanged(envData.temperature, prev_T, TH_T) || hasChanged(envData.humidity, prev_H, TH_H);
 }
 
+static char prevTrend = '~';
+
 static bool shouldRedrawScreen2()
 {
   if (currentOledScreenState != lastDrawnState)
     return true;
   if (isnan(prev_P) || isnan(prev_Alt))
     return true;
-  return hasChanged(envData.pressure, prev_P, TH_P) || hasChanged(envData.altitude, prev_Alt, TH_ALT);
+  char tr = qnhTrendArrow(qnhTrendPerHour(qnhHist, qnhHistN));
+  return hasChanged(envData.pressure, prev_P, TH_P) ||
+         hasChanged(envData.altitude, prev_Alt, TH_ALT) ||
+         tr != prevTrend;
 }
 
 static bool shouldRedrawScreen3()
@@ -298,6 +307,7 @@ static void stampScreen2()
 {
   prev_P = envData.pressure;
   prev_Alt = envData.altitude;
+  prevTrend = qnhTrendArrow(qnhTrendPerHour(qnhHist, qnhHistN));
   lastDrawnState = OLED_STATE_DATA_SCREEN_2;
 }
 

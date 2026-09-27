@@ -69,6 +69,7 @@ void loadPersistent()
   gasBaselineReady = (rdy != 0);
 
   loadWifiConfig();
+  loadQnhHistory();
 }
 
 static void readEepromStr(int addr, char *dst, size_t cap)
@@ -184,6 +185,45 @@ void saveQnhSource()
 void saveSeaLevelPressure(float p)
 {
   EEPROM.put(SEA_LEVEL_PRESSURE_ADDR, p);
+  EEPROM.commit();
+}
+
+void loadQnhHistory()
+{
+  uint8_t n = 0;
+  EEPROM.get(QNH_HIST_META_ADDR, n);
+  if (n > QNH_HIST_N)
+    n = 0; // corrupted count: start over
+  qnhHistN = 0;
+  for (uint8_t i = 0; i < n; i++)
+  {
+    float v = NAN;
+    EEPROM.get(QNH_HIST_ADDR + (int)(i * sizeof(float)), v);
+    if (!(v >= QNH_MIN_HPA && v <= QNH_MAX_HPA))
+    {
+      qnhHistN = 0; // corrupted entry: start over
+      return;
+    }
+    qnhHist[qnhHistN++] = v;
+  }
+}
+
+void pushQnhHistory(float v)
+{
+  if (!(v >= QNH_MIN_HPA && v <= QNH_MAX_HPA))
+    return;
+  if (qnhHistN < QNH_HIST_N)
+  {
+    qnhHist[qnhHistN++] = v;
+  }
+  else
+  {
+    memmove(qnhHist, qnhHist + 1, (QNH_HIST_N - 1) * sizeof(float));
+    qnhHist[QNH_HIST_N - 1] = v;
+  }
+  for (uint8_t i = 0; i < qnhHistN; i++)
+    EEPROM.put(QNH_HIST_ADDR + (int)(i * sizeof(float)), qnhHist[i]);
+  EEPROM.put(QNH_HIST_META_ADDR, qnhHistN);
   EEPROM.commit();
 }
 
