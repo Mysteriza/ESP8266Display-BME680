@@ -6,6 +6,7 @@ Bsec iaqSensor;
 char oledBuffer[64];
 
 AppMode currentAppMode = MODE_OFFLINE;
+PowerState currentPowerState = POWER_ACTIVE;
 OledDisplayState currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
 ThermalState thermal = THERM_NORMAL;
 
@@ -65,14 +66,3 @@ bool baselineFrozen = false;
 float gAltSmooth = NAN;
 float altRaw3[3] = {NAN, NAN, NAN};
 uint8_t altIdx = 0, altCnt = 0;
-
-WifiCred wifiNets[WIFI_MAX_NETS] = {};
-float wifiLat = DEFAULT_LAT;
-float wifiLon = DEFAULT_LON;
-bool qnhAutoEnabled = true;
-QnhSource qnhSource = QNH_SOURCE_DEFAULT;
-unsigned long lastQnhSyncMs = 0;
-int wifiLastHttpCode = 0;
-int wifiLastStatus = 0;
-uint8_t wifiFailCount = 0;
-char wifiLastAp[WIFI_SSID_LEN] = {0};

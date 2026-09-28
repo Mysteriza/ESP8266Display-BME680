@@ -48,19 +48,7 @@ The device is designed for **continuous operation** with robust error handling, 
 
 - **Error Recovery:** Auto-retry mechanism for BSEC initialization with exponential backoff.
 - **Offline Operation:** Continues to work without network, using last known QNH or default fallback.
-- **Serial Command Interface:** Configure QNH, WiFi, coordinates, check status, and calibrate altitude via serial monitor.
-
-### Periodic WiFi QNH Sync (battery-friendly)
-
-- Radio stays **OFF**; wakes **hourly** to fetch `current.pressure_msl` from Open-Meteo, then sleeps again.
-- Up to **3 WiFi networks** can be stored (slot 1 = priority). Each window **scans** for known SSIDs first, then connects in priority order — up to **3× within ~1 minute** (15s each); if all fail, radio sleeps and retries in 15 minutes.
-- No WiFi credentials → pure offline mode with EEPROM default QNH (existing behavior).
-- WiFi drop mid-sync → keeps last valid QNH, retries in 15 minutes.
-- ⚠️ ESP8266 is **2.4 GHz only** — a 5 GHz-only AP can never connect. Diagnose via serial: `st=1` = AP not visible (wrong SSID / 5 GHz / out of range), `st=4` = auth failed (wrong password), `st=6` = disconnected mid-way.
-- **Manual `QNH=`/`ALTREF=` always wins** and freezes auto-sync (re-enable with `QNHMODE=AUTO`) so field calibration is never silently overridden.
-- Auto-apply uses a **0.4 hPa deadband** (~3 m) to ignore API jitter and keep altitude stable.
-- Every successful fetch marks source **AUTO** (persisted across reboots), even when the value is held by the deadband — so the display always tells the truth about data freshness.
-- Screen 4 (Uptime) shows sync state: `AUTO 35m` (synced, age) / `WIFI WAIT` (creds ready, first sync pending) / `SYNC FAIL` (attempts failing, check serial log) / `MANUAL` / `QNH DEF` (no creds).
+- **Serial Command Interface:** Configure QNH, check status, and calibrate altitude via serial monitor.
 
 ---
 
@@ -160,33 +148,6 @@ See **[FIX_IRAM_OVERFLOW_GUIDE.md](FIX_IRAM_OVERFLOW_GUIDE.md)** for:
 
 ## Usage in the Field
 
-### 🔹 WiFi Provisioning (for hourly auto-QNH)
-
-> **New users:** no credentials are required to build or run this firmware. Without them the device simply works offline (`QNH DEF`). To enable auto-sync, pick **one** option below.
-
-**Option A — via serial (recommended, no recompile):**
-
-1. Connect via serial (115200 baud) and type:
-   ```
-   WIFI_SSID=YourSSID
-   WIFI_PASS=YourPassword
-   WIFI2_SSID=BackupSSID
-   WIFI2_PASS=BackupPassword
-   LAT=-6.898284
-   LON=107.634983
-   ```
-2. Verify with `WIFI?` and force a test sync with `SYNCNOW`.
-3. The radio stays OFF except for a ~20s window each hour. First sync runs ~30s after boot.
-4. Credentials are stored in EEPROM (plaintext — anyone with physical access can read them). Never commit `src/communication/wifi_secrets.h`.
-
-**Option B — compile-time defaults (for your own build only):**
-
-1. Copy `src/communication/wifi_secrets.example.h` → `src/communication/wifi_secrets.h`
-2. Fill in your SSID/password. This file is **gitignored** and will never be committed.
-3. On first boot with empty EEPROM, these seed the RAM credentials (serial commands still override and persist).
-
-> **Note:** Manual `QNH=`/`ALTREF=` disables auto-sync to protect field calibration. Re-enable with `QNHMODE=AUTO`.
-
 ### 🔹 Calibration via QNH (when local QNH data is available)
 
 1. Connect your Android phone to the device via **USB-C OTG + data cable**.
@@ -242,23 +203,15 @@ The device displays this scale as an "AQS" (Air Quality Status) string for easy 
 
 Connect via serial monitor (115200 baud) and use:
 
-| Command          | Description                            | Example Response                    |
-| ------------------ | -------------------------------------- | ----------------------------------- |
-| `QNH=<hPa>`        | Set sea-level pressure (MAN, auto off) | `OK QNH=1013.25 hPa (MAN, auto off)`|
-| `QNH?`             | Query current QNH value                | `QNH=1013.25 hPa`                   |
-| `ALT?`             | Query current altitude                 | `ALT=708.9 m`                       |
-| `PRESS?`           | Query current pressure                 | `P=933.10 hPa`                      |
-| `ALTREF=<m>`       | Auto-calculate QNH from known altitude | `OK QNH=1013.25 hPa (MAN, auto off)`|
-| `STATUS`           | Show system status                     | `Mode:0 Therm:0 BSEC:Y IAQ:45.2(3)` |
-| `WIFI_SSID=<s>`    | Save WiFi SSID slot 1 (1..32 chars)    | `OK slot1 ssid=...`                 |
-| `WIFI_PASS=<p>`    | Save WiFi password slot 1 (never echoed) | `OK slot1 pass saved`             |
-| `WIFI2_SSID=<s>` / `WIFI3_SSID=<s>` | Backup networks (slots 2–3) | `OK slot2 ssid=...`          |
-| `WIFI?`            | Show WiFi/QNH-sync status              | `WIFI ssid=... auto=Y src=AUTO ...` |
-| `WIFICLEAR`        | Erase stored WiFi credentials          | `OK WIFI cleared`                   |
-| `LAT=<f>` / `LON=<f>` | Set Open-Meteo coordinates          | `OK LAT=-6.898284`                  |
-| `QNHMODE=AUTO\|MAN`| Enable/disable auto QNH sync           | `OK QNHMODE=AUTO`                   |
-| `SYNCNOW`          | Force an immediate sync attempt        | `OK sync scheduled`                 |
-| `HELP`             | Show all commands                      | `CMD: QNH=<hPa>\|...`               |
+| Command      | Description                            | Example Response                    |
+| ------------ | -------------------------------------- | ----------------------------------- |
+| `QNH=<hPa>`  | Set sea-level pressure                 | `OK QNH=1013.25 hPa`                |
+| `QNH?`       | Query current QNH value                | `QNH=1013.25 hPa`                   |
+| `ALT?`       | Query current altitude                 | `ALT=708.9 m`                       |
+| `PRESS?`     | Query current pressure                 | `P=933.10 hPa`                      |
+| `ALTREF=<m>` | Auto-calculate QNH from known altitude | `OK QNH from ALTREF -> 1014.32 hPa` |
+| `STATUS`     | Show system status                     | `Mode:0 Therm:0 BSEC:Y IAQ:45.2(3)` |
+| `HELP`       | Show all commands                      | `CMD: QNH=<hPa>\|QNH?\|ALT?\|...`   |
 
 ### Display Screens
 
@@ -267,7 +220,7 @@ The OLED continuously cycles through 4 screens:
 1. **Screen 1 (5s):** Temperature & Humidity
 2. **Screen 2 (5s):** Pressure & Altitude
 3. **Screen 3 (5s):** Gas Resistance, IAQ, Accuracy, AQS
-4. **Screen 4 (5s):** System Uptime (HH:MM:SS) + live `QNH xxxx.x` value + sync age line (`SYNC 10m AGO` / `WIFI WAIT` / `SYNC FAIL` / `MANUAL` / `QNH DEF`)
+4. **Screen 4 (5s):** System Uptime (HH:MM:SS since boot)
 5. **Loops back to Screen 1** → Continuous monitoring mode
 
 ### IAQ Scale
@@ -349,13 +302,6 @@ IAQ display uses variance-adaptive filtering:
 
 ---
 
-## Security Notes
-
-- **WiFi fetch uses plaintext HTTP** (no TLS): deliberate tradeoff — ESP8266 IRAM is at ~97% with BSEC + display, TLS would not fit reliably. `pressure_msl` is public weather data; a MITM can at worst feed a wrong QNH, which is contained by the 870–1100 hPa validator + 0.4 hPa deadband.
-- **Credentials at rest are plaintext** (EEPROM + local `wifi_secrets.h`, gitignored). Anyone with physical USB access can already reflash the device, so the threat model assumes trusted hands. Run `WIFICLEAR` before lending the unit.
-- **No listening services**: no AP mode, no mDNS, no open ports. The only inputs are USB serial (physical) and the hourly Open-Meteo response (validated before use).
-- **WiFi password is never echoed** on serial (`WIFI_PASS` replies `OK WIFI saved` only).
-
 ## Troubleshooting
 
 ### ⚠️ IRAM Overflow Error (Compilation Error)
@@ -429,10 +375,7 @@ ESP8266Display-BME680.ino   (setup + main loop)
     │   ├── sensor.h / .cpp  (BSEC/BME680, thermal, error recovery)
     │   └── storage.h / .cpp (EEPROM persistence)
     └── communication/
-        ├── serial_cmd.h / .cpp (serial parser, char buffer)
-        ├── wifi_qnh.h / .cpp   (periodic WiFi + Open-Meteo QNH sync)
-        ├── wifi_secrets.h      (local creds, gitignored - DO NOT COMMIT)
-        └── wifi_secrets.example.h (template)
+        └── serial_cmd.h / .cpp (serial parser, char buffer)
 ```
 
 ---
@@ -450,8 +393,6 @@ ESP8266Display-BME680.ino   (setup + main loop)
 | `src/sensing/sensor.h` / `src/sensing/sensor.cpp` | BSEC/BME680 driver, filtering, thermal, retry |
 | `src/sensing/storage.h` / `src/sensing/storage.cpp` | EEPROM persistence layer                  |
 | `src/communication/serial_cmd.h` / `src/communication/serial_cmd.cpp` | Serial parser (char buffer) |
-| `src/communication/wifi_qnh.h` / `src/communication/wifi_qnh.cpp` | Periodic WiFi + Open-Meteo sync |
-| `src/communication/wifi_secrets.h` | Local WiFi defaults (gitignored) |
 | `ESP8266Display-BME680.ino.backup`     | Original v1.x backup                              |
 | `platform.txt`                     | Fixed platform configuration for IRAM fix       |
 | `FIX_IRAM_OVERFLOW_GUIDE.md`       | Complete IRAM overflow fix guide                |
@@ -468,7 +409,7 @@ ESP8266Display-BME680.ino   (setup + main loop)
 
 - **Flash:** ~380 KB (varies with libraries)
 - **SRAM:** ~42 KB
-- **EEPROM:** 1024 bytes (~522 used: BSEC state + QNH + 3 WiFi slots)
+- **EEPROM:** 512 bytes (128 bytes used)
 
 ### Timing
 

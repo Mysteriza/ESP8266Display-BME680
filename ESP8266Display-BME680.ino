@@ -1,6 +1,6 @@
 // ============================================================================
 // ESP8266 BME680 Environmental Monitor
-// Modular firmware: config | types | globals | utils | oled | sensor | storage | serial_cmd | wifi_qnh
+// Modular firmware: config.h | types.h | globals | utils | oled | sensor | storage | serial_cmd
 // ============================================================================
 
 #include <Wire.h>
@@ -13,7 +13,6 @@
 #include "src/sensing/storage.h"
 #include "src/sensing/sensor.h"
 #include "src/communication/serial_cmd.h"
-#include "src/communication/wifi_qnh.h"
 
 // ============================================================================
 // SETUP
@@ -49,7 +48,6 @@ void setup()
   }
 
   Wire.setClock(I2C_CLOCK_FAST);
-  wifiQnhBegin();
   lastSensorReadMillis = millis();
   oledScreenStateChangeMillis = millis();
   currentOledScreenState = OLED_STATE_DATA_SCREEN_1;
@@ -102,6 +100,5 @@ void loop()
   }
 
   handleSerialInput();
-  wifiQnhTick();
   yield();
 }
