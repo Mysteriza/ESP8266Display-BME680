@@ -393,13 +393,10 @@ ESP8266Display-BME680.ino   (setup + main loop)
 | `src/sensing/sensor.h` / `src/sensing/sensor.cpp` | BSEC/BME680 driver, filtering, thermal, retry |
 | `src/sensing/storage.h` / `src/sensing/storage.cpp` | EEPROM persistence layer                  |
 | `src/communication/serial_cmd.h` / `src/communication/serial_cmd.cpp` | Serial parser (char buffer) |
-| `ESP8266Display-BME680.ino.backup`     | Original v1.x backup                              |
 | `platform.txt`                     | Fixed platform configuration for IRAM fix       |
 | `FIX_IRAM_OVERFLOW_GUIDE.md`       | Complete IRAM overflow fix guide                |
-| `Fix RAM ESP8266.txt`              | Original fix notes                              |
+| `Pin.txt`                          | I2C wiring reference                            |
 | `README.md`                        | This file - project documentation               |
-| `CHANGELOG.md`                     | Version history and changes                     |
-| `MIGRATION.md`                     | Upgrade guide from v1.x to v2.0                 |
 
 ---
 
@@ -407,9 +404,9 @@ ESP8266Display-BME680.ino   (setup + main loop)
 
 ### Memory Usage (Typical)
 
-- **Flash:** ~380 KB (varies with libraries)
-- **SRAM:** ~42 KB
-- **EEPROM:** 512 bytes (128 bytes used)
+- **Flash:** ~290 KB code (measured build, varies with libraries)
+- **SRAM:** ~34 KB (measured build)
+- **EEPROM:** 512 bytes (~175 used: BSEC state + QNH + gas baseline)
 
 ### Timing
 
